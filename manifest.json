@@ -2,7 +2,7 @@
   "name": "Travel Itinerary",
   "short_name": "Itinerary",
   "description": "Your personalized travel itinerary with offline access",
-  "start_url": "./",
+  "start_url": "./?pwa=true",
   "display": "standalone",
   "background_color": "#f4f3ef",
   "theme_color": "#b89b5e",

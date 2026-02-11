@@ -122,22 +122,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get URL parameters
     const params = getURLParams();
 
+    console.log('🔍 Current URL:', window.location.href);
+    console.log('🔍 URL params:', params);
+
     // If no URL parameters, check if we have saved parameters (for installed PWA)
     if (!params.client || !params.shid) {
+      console.log('⚠️ Missing URL parameters, checking localStorage...');
       const savedParams = getSavedItineraryParams();
 
       if (savedParams && savedParams.client && savedParams.shid) {
-        // Redirect to the saved itinerary URL
-        const newUrl = `${window.location.origin}${window.location.pathname}?client=${savedParams.client}&shid=${savedParams.shid}&lang=${savedParams.lang}`;
-        window.location.href = newUrl;
+        console.log('✅ Found saved parameters:', savedParams);
+        // Build the full URL with all parameters
+        const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+        const queryParams = new URLSearchParams({
+          client: savedParams.client,
+          shid: savedParams.shid,
+          lang: savedParams.lang
+        });
+        const newUrl = `${baseUrl}?${queryParams.toString()}`;
+        console.log('🔄 Redirecting to:', newUrl);
+        window.location.replace(newUrl); // Use replace instead of href to avoid back button issues
         return;
       } else {
+        console.error('❌ No saved parameters found');
         showError('Missing required parameters: client and shid');
         return;
       }
     }
 
     // Save parameters for future use (when PWA is installed)
+    console.log('💾 Saving parameters for PWA...');
     saveItineraryParams(params);
 
     appState.clientCode = params.client;

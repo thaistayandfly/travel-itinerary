@@ -13,9 +13,15 @@
    - Go to: https://github.com/thaistayandfly
    - Click **"New repository"**
    - Name: `travel-itinerary`
-   - Make it **Public** ✅
+   - **Public** OR **Private** (your choice - see note below) ✅
    - **DO NOT** check "Initialize with README"
    - Click **"Create repository"**
+
+   **📝 Note:** With a **private** repository:
+   - ✅ Your source code is hidden from everyone
+   - ✅ GitHub Pages site is still publicly accessible
+   - ✅ Clients can view itineraries normally
+   - ✅ Only you can see/edit the code
 
 3. **Double-click:** `push-to-github.bat`
    - This will push your code to GitHub
