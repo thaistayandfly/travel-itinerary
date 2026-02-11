@@ -446,18 +446,69 @@ function renderRow(row) {
 
 function renderFlight(row) {
   const t = appState.translations;
+
+  // Check if this is a connection flight
+  const hasLayover = row['Layover Airport'] && row['Layover Airport'].toString().trim();
+
+  if (hasLayover) {
+    // Render connection flight with layover
+    return `
+      <div class="info-block flight-block connection-flight">
+        <div class="info-header">
+          <div class="info-icon">✈️</div>
+          <div class="info-title">
+            ${safe(row['Hotel / Airline'])}
+            <span class="connection-badge">🔄 ${t.connectionFlight || 'Connection'}</span>
+          </div>
+        </div>
+
+        <!-- First Segment -->
+        <div class="flight-segment">
+          <div class="segment-header">${t.firstFlight || 'First Flight'}</div>
+          <div class="info-grid">
+            <div class="info-item"><span>${t.from}</span>${translateCity(row['Current Location'])}</div>
+            <div class="info-item"><span>${t.to}</span>${translateCity(row['Layover Airport'])}</div>
+            <div class="info-item"><span>${t.flightNumber}</span>${safe(row['Confirmation / Flight #'])}</div>
+            <div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Check-in / Departure'] || ''}</div>
+            ${row['Layover Time'] ? `<div class="info-item"><span>${t.arrival}</span>${row['Start Date'] || '-'} ${row['Layover Time'] || ''}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Layover Indicator -->
+        <div class="layover-indicator">
+          ⏱️ ${t.layover || 'Layover'}: ${translateCity(row['Layover Airport'])}
+        </div>
+
+        <!-- Second Segment -->
+        <div class="flight-segment segment-layover">
+          <div class="segment-header">${t.secondFlight || 'Second Flight'}</div>
+          <div class="info-grid">
+            <div class="info-item"><span>${t.from}</span>${translateCity(row['Layover Airport'])}</div>
+            <div class="info-item"><span>${t.to}</span>${translateCity(row['Destination'])}</div>
+            ${row['Second Flight #'] ? `<div class="info-item"><span>${t.flightNumber}</span>${safe(row['Second Flight #'])}</div>` : ''}
+            ${row['Second Flight Arrival'] ? `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Second Flight Arrival'] || ''}</div>` : `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>`}
+          </div>
+        </div>
+
+        ${row['Notes'] ? `<div class="info-notes"><span>📝</span>${safe(row['Notes'])}</div>` : ''}
+      </div>
+    `;
+  }
+
+  // Regular direct flight
   return `
     <div class="info-block flight-block">
       <div class="info-header">
         <div class="info-icon">✈️</div>
         <div class="info-title">
           ${safe(row['Hotel / Airline'])}
-          <span class="connection-badge">${t.directFlight || 'Flight'}</span>
+          <span class="connection-badge">${t.directFlight || 'Direct Flight'}</span>
         </div>
       </div>
       <div class="info-grid">
         <div class="info-item"><span>${t.from}</span>${translateCity(row['Current Location'])}</div>
         <div class="info-item"><span>${t.to}</span>${translateCity(row['Destination'])}</div>
+        <div class="info-item"><span>${t.flightNumber}</span>${safe(row['Confirmation / Flight #'])}</div>
         <div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Check-in / Departure'] || ''}</div>
         <div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>
       </div>

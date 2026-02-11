@@ -367,6 +367,59 @@ html[dir="rtl"] #backToTop {
   border-left: 3px solid rgba(255, 193, 7, 0.3);
 }
 
+/* Connection Flight Styles */
+.connection-flight {
+  border-left: 3px solid var(--accent);
+}
+
+.connection-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.flight-segment {
+  padding: 12px 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.flight-segment:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.segment-layover {
+  padding-top: 16px;
+}
+
+.segment-header {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.layover-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 12px 0;
+  padding: 8px 12px;
+  background: var(--accent-soft);
+  border-radius: 8px;
+  border-left: 3px solid var(--accent);
+}
+
 .info-header {
   display: flex;
   align-items: center;
