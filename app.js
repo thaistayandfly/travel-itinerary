@@ -3,7 +3,7 @@
 // ===============================
 const CONFIG = {
   // Google Apps Script web app URL
-  API_URL: 'https://script.google.com/macros/s/AKfycbyLaEDJI7LmMtcueaAwJBtXRKA3Hy7i3rXTtet8z9uHoh68u4jLe84HJwZ_ISm4ExSzZw/exec',
+  API_URL: 'https://script.google.com/macros/s/AKfycbxIy-khGEmI_o4trkap9Bq706KXqbeS6-lDUKYB6QUZu2V7qVLiAcRuu33lTuOKnfRtug/exec',
   CACHE_KEY: 'itinerary_cache',
   CACHE_VERSION: 'v1',
   DB_NAME: 'TravelItineraryDB',
