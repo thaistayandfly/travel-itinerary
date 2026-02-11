@@ -1802,30 +1802,28 @@ function openPDFInNewTab(base64Data) {
     const blob = new Blob([byteArray], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(blob);
 
-    // Check if iOS Safari
+    // Detect mobile platforms
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isAndroid = /Android/.test(navigator.userAgent);
+    const isMobile = isIOS || isAndroid;
 
-    if (isIOS) {
-      // For iOS Safari: Open in same window (Safari will handle PDF viewing)
-      // This avoids popup blockers and works better with iOS PDF viewer
+    if (isMobile) {
+      // For mobile: Open in same window (mobile browsers handle PDF viewing natively)
+      // This avoids popup blockers and works better with mobile PDF viewers
       window.location.href = blobUrl;
-
-      // Alternative: Use data URI (works but may have size limits)
-      // const dataUri = `data:application/pdf;base64,${base64Data}`;
-      // window.location.href = dataUri;
 
       // Clean up blob URL after a delay
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } else {
-      // For other browsers, use window.open
+      // For desktop browsers, use window.open
       const newWindow = window.open(blobUrl, '_blank');
 
       if (!newWindow) {
-        // Fallback if popup blocked
+        // Fallback if popup blocked - try to open without download attribute
         const link = document.createElement('a');
         link.href = blobUrl;
-        link.download = `document_${Date.now()}.pdf`;
         link.target = '_blank';
+        // Don't set download attribute - let the browser decide to open or download
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1836,7 +1834,11 @@ function openPDFInNewTab(base64Data) {
     }
   } catch (err) {
     console.error('Error opening PDF:', err);
-    alert('Error opening document. Please try again.');
+    showNotification(
+      'Error',
+      'Error opening document. Please try again.',
+      'error'
+    );
   }
 }
 
