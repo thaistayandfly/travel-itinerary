@@ -1425,12 +1425,23 @@ function showSecurePortal() {
   const portal = document.getElementById('securePortal');
   const input = document.getElementById('birthYearInput');
   const error = document.getElementById('portalErr');
+  const btn = document.getElementById('verifyBtn');
+  const t = appState.translations;
 
   if (portal && input && error) {
     portal.classList.add('active');
     input.value = '';
     error.textContent = '';
     error.style.display = 'none';
+
+    // Update button text based on mode
+    if (btn) {
+      if (downloadAllMode) {
+        btn.textContent = t.startDownload || 'Start Download';
+      } else {
+        btn.textContent = t.unlockDocument || 'Unlock Document';
+      }
+    }
 
     setTimeout(() => input.focus(), 300);
   }
