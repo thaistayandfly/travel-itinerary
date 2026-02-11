@@ -1512,6 +1512,7 @@ async function handleSingleDocument(birthYear, error, loading, btn) {
 
 async function handleBatchDownload(birthYear, error, loading, btn) {
   const allDocs = currentDocumentContext.allDocs;
+  const t = appState.translations;
 
   // Close portal
   closeSecurePortal();
@@ -1519,7 +1520,7 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
   // Show progress on the download button
   const downloadBtn = document.querySelector('.btn-download-all');
   if (downloadBtn) {
-    downloadBtn.textContent = `📥 Downloading... 0/${allDocs.length}`;
+    downloadBtn.textContent = `📥 ${t.downloading || 'Downloading'}... 0/${allDocs.length}`;
     downloadBtn.disabled = true;
   }
 
@@ -1553,7 +1554,7 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
 
       // Update progress
       if (downloadBtn) {
-        downloadBtn.textContent = `📥 Downloading... ${i + 1}/${allDocs.length}`;
+        downloadBtn.textContent = `📥 ${t.downloading || 'Downloading'}... ${i + 1}/${allDocs.length}`;
       }
 
     } catch (err) {
@@ -1569,7 +1570,6 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
   appState.cachedDocIds = await getAllCachedDocumentIds();
 
   // Show result
-  const t = appState.translations;
   if (successCount > 0) {
     alert(`✅ ${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${successCount > 1 ? 's' : ''} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`);
   } else {

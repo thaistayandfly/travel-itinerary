@@ -40,8 +40,17 @@
   </div>
   <script>
     // Set loading text based on URL language parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const lang = urlParams.get('lang') || 'en';
+    // Check hash params first (Safari PWA), then query params
+    let lang = 'en';
+
+    if (window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      lang = hashParams.get('lang') || 'en';
+    } else {
+      const urlParams = new URLSearchParams(window.location.search);
+      lang = urlParams.get('lang') || 'en';
+    }
+
     const loadingText = lang === 'he' ? 'טוען את המסלול שלך...' : 'Loading your itinerary...';
     document.getElementById('loadingText').textContent = loadingText;
   </script>
