@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v7';
+const CACHE_NAME = 'itinerary-pwa-v9';
 const urlsToCache = [
   './',
   './index.html',

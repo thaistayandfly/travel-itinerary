@@ -1149,67 +1149,33 @@ function showError(message) {
   errorMessage.textContent = message;
 }
 
-function showSafariPWARecoveryUI() {
-  const loading = document.getElementById('loadingScreen');
-  const errorScreen = document.getElementById('errorScreen');
-  const errorMessage = document.getElementById('errorMessage');
-
-  loading.style.display = 'none';
-  errorScreen.style.display = 'flex';
-
-  // Safari PWA setup screen - ask user to paste their URL
-  errorMessage.innerHTML = `
-    <div style="text-align: center; max-width: 500px; margin: 0 auto;">
-      <h3 style="margin-bottom: 15px;">📲 Setup Required</h3>
-      <p style="margin-bottom: 20px; color: #666;">
-        To use this app from your home screen, please paste your itinerary URL below:
-      </p>
-
-      <input
-        type="text"
-        id="setupUrlInput"
-        placeholder="Paste your itinerary link here..."
-        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 15px;"
-      />
-
-      <button
-        onclick="setupPWAFromURL()"
-        class="btn btn-primary"
-        style="width: 100%; padding: 12px; font-size: 16px; margin-bottom: 10px;"
-      >
-        Continue
-      </button>
-
-      <button
-        onclick="window.close()"
-        class="btn btn-secondary"
-        style="width: 100%; padding: 12px; font-size: 16px;"
-      >
-        Cancel
-      </button>
-
-      <p style="margin-top: 20px; font-size: 12px; color: #999;">
-        💡 Tip: Copy your itinerary URL from the email or message you received
-      </p>
-    </div>
-  `;
-
-  // Focus input after a delay
-  setTimeout(() => {
-    const input = document.getElementById('setupUrlInput');
-    if (input) input.focus();
-  }, 300);
-}
-
 // Setup PWA from pasted URL
-window.setupPWAFromURL = async function() {
+async function setupPWAFromURL() {
   const input = document.getElementById('setupUrlInput');
-  if (!input) return;
+  const continueBtn = document.getElementById('setupContinueBtn');
+  const cancelBtn = document.getElementById('setupCancelBtn');
+
+  if (!input) {
+    console.error('Setup input not found');
+    return;
+  }
 
   const url = input.value.trim();
   if (!url) {
     alert('Please paste your itinerary URL');
     return;
+  }
+
+  // Show loading state
+  if (continueBtn) {
+    continueBtn.disabled = true;
+    continueBtn.innerHTML = '⏳ Setting up...';
+  }
+  if (cancelBtn) {
+    cancelBtn.disabled = true;
+  }
+  if (input) {
+    input.disabled = true;
   }
 
   try {
@@ -1237,22 +1203,139 @@ window.setupPWAFromURL = async function() {
 
     if (!client || !shid) {
       alert('Invalid URL. Please make sure you copied the complete itinerary link.');
+      // Reset button state
+      if (continueBtn) {
+        continueBtn.disabled = false;
+        continueBtn.innerHTML = 'Continue';
+      }
+      if (cancelBtn) cancelBtn.disabled = false;
+      if (input) input.disabled = false;
       return;
+    }
+
+    console.log('✅ Extracted params:', { client, shid, lang });
+
+    // Update button to show saving state
+    if (continueBtn) {
+      continueBtn.innerHTML = '💾 Saving...';
     }
 
     // Save parameters
     await saveItineraryParams({ client, shid, lang });
+    console.log('💾 Parameters saved successfully');
 
-    // Redirect to hash-based URL
+    // Update button to show redirect state
+    if (continueBtn) {
+      continueBtn.innerHTML = '🔄 Loading itinerary...';
+    }
+
+    // Small delay to ensure saves are flushed
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Redirect to hash-based URL - this will reload the page
     const baseUrl = window.location.origin + window.location.pathname;
     const newUrl = `${baseUrl}#client=${client}&shid=${shid}&lang=${lang}`;
-    window.location.replace(newUrl);
+    console.log('🔄 Redirecting to:', newUrl);
+
+    // Force reload to ensure everything is fresh
+    window.location.href = newUrl;
+
+    // Fallback: If redirect didn't work, manually reload after short delay
+    setTimeout(() => {
+      window.location.reload();
+    }, 1000);
 
   } catch (error) {
     console.error('URL parsing error:', error);
     alert('Invalid URL format. Please paste the complete itinerary link.');
+
+    // Reset button state on error
+    if (continueBtn) {
+      continueBtn.disabled = false;
+      continueBtn.innerHTML = 'Continue';
+    }
+    if (cancelBtn) cancelBtn.disabled = false;
+    if (input) input.disabled = false;
   }
-};
+}
+
+function showSafariPWARecoveryUI() {
+  const loading = document.getElementById('loadingScreen');
+  const errorScreen = document.getElementById('errorScreen');
+  const errorMessage = document.getElementById('errorMessage');
+
+  loading.style.display = 'none';
+  errorScreen.style.display = 'flex';
+
+  // Safari PWA setup screen - ask user to paste their URL
+  errorMessage.innerHTML = `
+    <div style="text-align: center; max-width: 500px; margin: 0 auto;">
+      <h3 style="margin-bottom: 15px;">📲 Setup Required</h3>
+      <p style="margin-bottom: 20px; color: #666;">
+        To use this app from your home screen, please paste your itinerary URL below:
+      </p>
+
+      <input
+        type="text"
+        id="setupUrlInput"
+        placeholder="Paste your itinerary link here..."
+        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 15px;"
+      />
+
+      <button
+        id="setupContinueBtn"
+        class="btn btn-primary"
+        style="width: 100%; padding: 12px; font-size: 16px; margin-bottom: 10px;"
+      >
+        Continue
+      </button>
+
+      <button
+        id="setupCancelBtn"
+        class="btn btn-secondary"
+        style="width: 100%; padding: 12px; font-size: 16px;"
+      >
+        Cancel
+      </button>
+
+      <p style="margin-top: 20px; font-size: 12px; color: #999;">
+        💡 Tip: Copy your itinerary URL from the email or message you received
+      </p>
+    </div>
+  `;
+
+  // Add event listeners (Safari doesn't like inline onclick in innerHTML)
+  setTimeout(() => {
+    const input = document.getElementById('setupUrlInput');
+    const continueBtn = document.getElementById('setupContinueBtn');
+    const cancelBtn = document.getElementById('setupCancelBtn');
+
+    if (input) {
+      input.focus();
+      // Allow pressing Enter to continue
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          setupPWAFromURL();
+        }
+      });
+    }
+
+    if (continueBtn) {
+      continueBtn.addEventListener('click', setupPWAFromURL);
+    }
+
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        // Try to go back or close
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.close();
+        }
+      });
+    }
+  }, 100);
+}
 
 // ===============================
 // DOCUMENT HANDLING
