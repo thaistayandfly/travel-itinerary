@@ -125,6 +125,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🔍 Current URL:', window.location.href);
     console.log('🔍 URL params:', params);
 
+    // Safari PWA Fix: If we have query params but not hash params, convert to hash-based URL
+    if (params.client && params.shid && window.location.search && !window.location.hash) {
+      const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+      const hashParams = `client=${params.client}&shid=${params.shid}&lang=${params.lang}`;
+      const newUrl = `${baseUrl}#${hashParams}`;
+      console.log('🔄 Converting query params to hash params:', newUrl);
+      window.location.replace(newUrl);
+      return;
+    }
+
     // If no URL parameters, check if we have saved parameters (for installed PWA)
     if (!params.client || !params.shid) {
       console.log('⚠️ Missing URL parameters, checking saved data...');
@@ -138,25 +148,24 @@ document.addEventListener('DOMContentLoaded', async () => {
           || window.navigator.standalone
           || document.referrer.includes('android-app://');
 
-        if (isStandalone) {
-          // In standalone mode, use saved parameters directly without redirect
-          console.log('📱 Running in standalone PWA mode, using saved parameters');
-          params.client = savedParams.client;
-          params.shid = savedParams.shid;
-          params.lang = savedParams.lang || 'en';
-        } else {
-          // In browser mode, redirect to include parameters in URL
-          const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
-          const queryParams = new URLSearchParams({
-            client: savedParams.client,
-            shid: savedParams.shid,
-            lang: savedParams.lang || 'en'
-          });
-          const newUrl = `${baseUrl}?${queryParams.toString()}`;
-          console.log('🔄 Redirecting to:', newUrl);
+        // Safari PWA Fix: Always redirect to hash-based URL to persist params in PWA mode
+        const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+        const hashParams = `client=${savedParams.client}&shid=${savedParams.shid}&lang=${savedParams.lang || 'en'}`;
+        const newUrl = `${baseUrl}#${hashParams}`;
+
+        // Only redirect if we're not already at this URL
+        const currentHash = window.location.hash.substring(1);
+        if (currentHash !== hashParams) {
+          console.log('🔄 Redirecting to hash-based URL:', newUrl);
           window.location.replace(newUrl);
           return;
         }
+
+        // If we're already at the correct hash URL, use the params
+        console.log('📱 Running in PWA mode with hash params');
+        params.client = savedParams.client;
+        params.shid = savedParams.shid;
+        params.lang = savedParams.lang || 'en';
       } else {
         console.error('❌ No saved parameters found');
 
@@ -215,12 +224,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 // URL PARAMETERS
 // ===============================
 function getURLParams() {
-  const params = new URLSearchParams(window.location.search);
-  return {
-    client: params.get('client'),
-    shid: params.get('shid'),
-    lang: params.get('lang') || 'en'
-  };
+  // Safari PWA Fix: Support both query params (?client=...) and hash params (#client=...)
+  // Hash params are more persistent in Safari PWA mode
+
+  let client = null;
+  let shid = null;
+  let lang = 'en';
+
+  // Try hash parameters first (Safari PWA friendly)
+  if (window.location.hash) {
+    const hash = window.location.hash.substring(1); // Remove #
+    const hashParams = new URLSearchParams(hash);
+
+    client = hashParams.get('client');
+    shid = hashParams.get('shid');
+    lang = hashParams.get('lang') || 'en';
+
+    if (client && shid) {
+      console.log('📱 Loaded params from URL hash (Safari PWA mode)');
+      return { client, shid, lang };
+    }
+  }
+
+  // Fallback to query parameters (standard mode)
+  const queryParams = new URLSearchParams(window.location.search);
+  client = queryParams.get('client');
+  shid = queryParams.get('shid');
+  lang = queryParams.get('lang') || 'en';
+
+  if (client && shid) {
+    console.log('🔍 Loaded params from URL query');
+  }
+
+  return { client, shid, lang };
 }
 
 async function saveItineraryParams(params) {
