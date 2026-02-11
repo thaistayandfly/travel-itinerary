@@ -159,7 +159,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       } else {
         console.error('❌ No saved parameters found');
-        showError('Missing required parameters: client and shid');
+
+        // Safari-specific: Show helpful error with recovery option
+        const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone;
+
+        if (isSafari && isStandalone) {
+          // Safari PWA - show recovery UI
+          showSafariPWARecoveryUI();
+        } else {
+          showError('Missing required parameters: client and shid');
+        }
         return;
       }
     }
@@ -214,48 +225,73 @@ function getURLParams() {
 
 async function saveItineraryParams(params) {
   try {
-    // Save to both localStorage AND IndexedDB for better persistence
-    // iOS Safari is more reliable with IndexedDB than localStorage in PWA mode
-
-    // Save to localStorage (fast, synchronous)
-    localStorage.setItem('itinerary_params', JSON.stringify({
+    const paramsData = {
       client: params.client,
       shid: params.shid,
       lang: params.lang
-    }));
+    };
 
-    // Save to IndexedDB (more persistent on iOS)
+    // Save to localStorage (fast, synchronous)
+    localStorage.setItem('itinerary_params', JSON.stringify(paramsData));
+    console.log('✅ Saved to localStorage');
+
+    // Save to IndexedDB (more persistent on iOS) - properly wrapped in Promise
     if (db) {
-      const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
-      const store = transaction.objectStore(CONFIG.DOCS_STORE);
-      await store.put({
-        id: '__app_params__',
-        data: JSON.stringify({
-          client: params.client,
-          shid: params.shid,
-          lang: params.lang
-        }),
-        timestamp: Date.now()
+      await new Promise((resolve, reject) => {
+        const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
+        const store = transaction.objectStore(CONFIG.DOCS_STORE);
+        const request = store.put({
+          id: '__app_params__',
+          data: JSON.stringify(paramsData),
+          timestamp: Date.now()
+        });
+
+        request.onsuccess = () => {
+          console.log('✅ Saved to IndexedDB');
+          resolve();
+        };
+        request.onerror = () => {
+          console.error('❌ IndexedDB save failed:', request.error);
+          reject(request.error);
+        };
+
+        // Also listen for transaction complete to ensure data is flushed
+        transaction.oncomplete = () => {
+          console.log('✅ IndexedDB transaction completed');
+        };
       });
     }
 
-    console.log('✅ Itinerary parameters saved for installed PWA (localStorage + IndexedDB)');
+    // Safari-specific: Also save to sessionStorage as backup
+    sessionStorage.setItem('itinerary_params', JSON.stringify(paramsData));
+    console.log('✅ Saved to sessionStorage (Safari backup)');
+
+    console.log('✅ Itinerary parameters saved for installed PWA (all storages)');
   } catch (error) {
-    console.warn('Failed to save itinerary params:', error);
+    console.error('Failed to save itinerary params:', error);
   }
 }
 
 async function getSavedItineraryParams() {
   try {
-    // Try IndexedDB first (more reliable on iOS)
+    // Try IndexedDB first (more reliable on iOS) - properly wrapped in Promise
     if (db) {
-      const transaction = db.transaction([CONFIG.DOCS_STORE], 'readonly');
-      const store = transaction.objectStore(CONFIG.DOCS_STORE);
-      const result = await store.get('__app_params__');
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const transaction = db.transaction([CONFIG.DOCS_STORE], 'readonly');
+          const store = transaction.objectStore(CONFIG.DOCS_STORE);
+          const request = store.get('__app_params__');
 
-      if (result && result.data) {
-        console.log('📱 Loaded params from IndexedDB');
-        return JSON.parse(result.data);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        });
+
+        if (result && result.data) {
+          console.log('📱 Loaded params from IndexedDB');
+          return JSON.parse(result.data);
+        }
+      } catch (idbError) {
+        console.warn('IndexedDB read failed:', idbError);
       }
     }
 
@@ -265,9 +301,18 @@ async function getSavedItineraryParams() {
       console.log('📱 Loaded params from localStorage');
       return JSON.parse(saved);
     }
+
+    // Safari-specific: Try sessionStorage as last resort
+    const sessionSaved = sessionStorage.getItem('itinerary_params');
+    if (sessionSaved) {
+      console.log('📱 Loaded params from sessionStorage (Safari backup)');
+      return JSON.parse(sessionSaved);
+    }
   } catch (error) {
-    console.warn('Failed to load saved itinerary params:', error);
+    console.error('Failed to load saved itinerary params:', error);
   }
+
+  console.warn('⚠️ No saved parameters found in any storage');
   return null;
 }
 
@@ -1037,6 +1082,29 @@ function showError(message) {
   loading.style.display = 'none';
   errorScreen.style.display = 'flex';
   errorMessage.textContent = message;
+}
+
+function showSafariPWARecoveryUI() {
+  const loading = document.getElementById('loadingScreen');
+  const errorScreen = document.getElementById('errorScreen');
+  const errorMessage = document.getElementById('errorMessage');
+
+  loading.style.display = 'none';
+  errorScreen.style.display = 'flex';
+
+  // Safari-specific recovery message
+  errorMessage.innerHTML = `
+    <div style="text-align: center;">
+      <p style="margin-bottom: 20px;">Safari PWA session expired. Please open the app from Safari browser first:</p>
+      <ol style="text-align: left; display: inline-block; margin-bottom: 20px;">
+        <li>Open Safari browser</li>
+        <li>Visit your itinerary link</li>
+        <li>The app will save your session</li>
+        <li>Then you can use the home screen icon</li>
+      </ol>
+      <button onclick="window.close()" class="btn btn-secondary" style="margin-right: 10px;">Close App</button>
+    </div>
+  `;
 }
 
 // ===============================

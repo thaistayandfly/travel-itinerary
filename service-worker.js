@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v3';
+const CACHE_NAME = 'itinerary-pwa-v4';
 const urlsToCache = [
   './',
   './index.html',
@@ -17,14 +17,26 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Caching static assets');
-        return cache.addAll(urlsToCache);
+        // Cache each resource individually to handle failures gracefully
+        return Promise.all(
+          urlsToCache.map(url => {
+            return cache.add(url).catch(err => {
+              console.warn('[SW] Failed to cache:', url, err);
+              // Continue even if one resource fails
+              return Promise.resolve();
+            });
+          })
+        );
       })
       .then(() => {
         console.log('[SW] Service worker installed successfully');
-        return self.skipWaiting(); // Activate immediately
+        // Safari-specific: Force immediate activation
+        return self.skipWaiting();
       })
       .catch((error) => {
         console.error('[SW] Installation failed:', error);
+        // Don't fail installation completely
+        return self.skipWaiting();
       })
   );
 });
@@ -50,9 +62,10 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch event - serve from cache when offline, or fetch from network
+// Fetch event - smart caching strategy for Safari compatibility
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  const url = new URL(request.url);
 
   // Only handle GET requests
   if (request.method !== 'GET') {
@@ -84,60 +97,108 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first strategy: Try network first, fall back to cache if offline
-  // This ensures users always get the latest version when online
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Network succeeded - update cache and return response
-        console.log('[SW] Fetched fresh from network:', request.url);
+  // Determine if this is a static asset (HTML, CSS, JS, fonts)
+  const isStaticAsset = url.pathname.endsWith('.html') ||
+                        url.pathname.endsWith('.css') ||
+                        url.pathname.endsWith('.js') ||
+                        url.pathname.endsWith('.json') ||
+                        url.pathname === '/' ||
+                        url.pathname === './' ||
+                        url.hostname.includes('fonts.googleapis.com') ||
+                        url.hostname.includes('fonts.gstatic.com') ||
+                        url.hostname.includes('cdn.jsdelivr.net');
 
-        // Don't cache if response is not valid
-        if (!response || response.status !== 200 || response.type === 'error') {
+  if (isStaticAsset) {
+    // CACHE-FIRST strategy for static assets (critical for Safari offline mode)
+    event.respondWith(
+      caches.match(request)
+        .then((cachedResponse) => {
+          if (cachedResponse) {
+            console.log('[SW] Serving from cache:', request.url);
+
+            // Still fetch in background to update cache (stale-while-revalidate)
+            fetch(request).then((response) => {
+              if (response && response.status === 200) {
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(request, response.clone());
+                  console.log('[SW] Updated cache in background:', request.url);
+                });
+              }
+            }).catch(() => {
+              // Ignore background fetch errors
+            });
+
+            return cachedResponse;
+          }
+
+          // Not in cache - fetch from network
+          console.log('[SW] Not in cache, fetching:', request.url);
+          return fetch(request).then((response) => {
+            if (response && response.status === 200) {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(request, responseToCache);
+                console.log('[SW] Cached new resource:', request.url);
+              });
+            }
+            return response;
+          }).catch((error) => {
+            console.error('[SW] Fetch failed:', request.url, error);
+
+            // Return offline fallback for navigation
+            if (request.mode === 'navigate') {
+              return caches.match('./index.html');
+            }
+
+            return new Response('Offline - resource not available', {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: new Headers({ 'Content-Type': 'text/plain' })
+            });
+          });
+        })
+    );
+  } else {
+    // NETWORK-FIRST strategy for other resources (ensures fresh data)
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          console.log('[SW] Fetched fresh from network:', request.url);
+
+          if (response && response.status === 200 && response.type !== 'error') {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, responseToCache);
+              console.log('[SW] Updated cache:', request.url);
+            });
+          }
+
           return response;
-        }
+        })
+        .catch((error) => {
+          console.log('[SW] Network failed, trying cache:', request.url);
 
-        // Clone the response
-        const responseToCache = response.clone();
-
-        // Update cache with fresh version
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseToCache);
-          console.log('[SW] Updated cache with fresh version:', request.url);
-        });
-
-        return response;
-      })
-      .catch((error) => {
-        // Network failed - try cache
-        console.log('[SW] Network failed, trying cache:', request.url);
-
-        return caches.match(request)
-          .then((cachedResponse) => {
+          return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) {
               console.log('[SW] Serving from cache (offline):', request.url);
               return cachedResponse;
             }
 
-            // Not in cache either - return offline fallback
             console.error('[SW] No cache available for:', request.url, error);
 
-            // Return offline fallback page for navigation requests
             if (request.mode === 'navigate') {
               return caches.match('./index.html');
             }
 
-            // For other resources, return an error response
             return new Response('Offline - resource not available', {
               status: 503,
               statusText: 'Service Unavailable',
-              headers: new Headers({
-                'Content-Type': 'text/plain'
-              })
+              headers: new Headers({ 'Content-Type': 'text/plain' })
             });
           });
-      })
-  );
+        })
+    );
+  }
 });
 
 // Listen for messages from the client
