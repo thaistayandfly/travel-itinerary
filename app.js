@@ -744,7 +744,7 @@ function renderSecurePortal() {
 
 /**
  * Format duration from HH:MM to readable format
- * Example: "02:30" → "2h 30m" (en) or "2ש 30ד" (he)
+ * Example: "02:30" → "2h 30m" (en) or "2 ש׳ 30 ד׳" (he)
  */
 function formatDuration(duration, lang = 'en') {
   if (!duration) return '';
@@ -756,7 +756,7 @@ function formatDuration(duration, lang = 'en') {
   const minutes = parseInt(parts[1], 10);
 
   if (lang === 'he') {
-    return `${hours}ש ${minutes}ד`;
+    return `${hours} ש׳ ${minutes} ד׳`;
   }
   return `${hours}h ${minutes}m`;
 }
