@@ -132,17 +132,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (savedParams && savedParams.client && savedParams.shid) {
         console.log('✅ Found saved parameters:', savedParams);
-        // Build the full URL with all parameters
-        const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
-        const queryParams = new URLSearchParams({
-          client: savedParams.client,
-          shid: savedParams.shid,
-          lang: savedParams.lang
-        });
-        const newUrl = `${baseUrl}?${queryParams.toString()}`;
-        console.log('🔄 Redirecting to:', newUrl);
-        window.location.replace(newUrl); // Use replace instead of href to avoid back button issues
-        return;
+
+        // Check if we're in standalone mode (PWA installed)
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+          || window.navigator.standalone
+          || document.referrer.includes('android-app://');
+
+        if (isStandalone) {
+          // In standalone mode, use saved parameters directly without redirect
+          console.log('📱 Running in standalone PWA mode, using saved parameters');
+          params.client = savedParams.client;
+          params.shid = savedParams.shid;
+          params.lang = savedParams.lang || 'en';
+        } else {
+          // In browser mode, redirect to include parameters in URL
+          const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
+          const queryParams = new URLSearchParams({
+            client: savedParams.client,
+            shid: savedParams.shid,
+            lang: savedParams.lang || 'en'
+          });
+          const newUrl = `${baseUrl}?${queryParams.toString()}`;
+          console.log('🔄 Redirecting to:', newUrl);
+          window.location.replace(newUrl);
+          return;
+        }
       } else {
         console.error('❌ No saved parameters found');
         showError('Missing required parameters: client and shid');
@@ -227,10 +241,19 @@ function getSavedItineraryParams() {
 // DATA FETCHING
 // ===============================
 async function fetchFromAPI() {
-  const url = `${CONFIG.API_URL}?client=${appState.clientCode}&shid=${appState.spreadsheetId}&lang=${appState.language}&format=json`;
+  // Add timestamp to prevent caching and always get fresh data
+  const timestamp = new Date().getTime();
+  const url = `${CONFIG.API_URL}?client=${appState.clientCode}&shid=${appState.spreadsheetId}&lang=${appState.language}&format=json&_t=${timestamp}`;
 
   try {
-    const response = await fetch(url);
+    // Force fresh fetch, bypass cache
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -1220,10 +1243,41 @@ function openPDFInNewTab(base64Data) {
     const blob = new Blob([byteArray], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(blob);
 
-    window.open(blobUrl, '_blank');
+    // Check if iOS Safari (which has issues with blob URLs in window.open)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-    // Clean up blob URL after a delay
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    if (isIOS) {
+      // For iOS, create a download link and trigger it
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `document_${Date.now()}.pdf`;
+      link.target = '_blank';
+
+      // Trigger the link
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } else {
+      // For other browsers, use window.open
+      const newWindow = window.open(blobUrl, '_blank');
+
+      if (!newWindow) {
+        // Fallback if popup blocked
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `document_${Date.now()}.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      // Clean up blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    }
   } catch (err) {
     console.error('Error opening PDF:', err);
     alert('Error opening document. Please try again.');

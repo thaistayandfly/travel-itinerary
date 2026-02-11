@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v1';
+const CACHE_NAME = 'itinerary-pwa-v2';
 const urlsToCache = [
   './',
   './index.html',
@@ -59,6 +59,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // NEVER cache API requests - always fetch fresh from network
+  if (request.url.includes('script.google.com') || request.url.includes('format=json')) {
+    console.log('[SW] API request - bypassing cache, fetching fresh:', request.url);
+    event.respondWith(
+      fetch(request, {
+        cache: 'no-store'
+      }).catch((error) => {
+        console.error('[SW] API fetch failed:', error);
+        return new Response(JSON.stringify({ error: 'Network error' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+    return;
+  }
+
   // Skip cross-origin requests that we can't cache
   if (!request.url.startsWith(self.location.origin) &&
       !request.url.includes('fonts.googleapis.com') &&
@@ -73,20 +90,6 @@ self.addEventListener('fetch', (event) => {
         // Return cached version if available
         if (cachedResponse) {
           console.log('[SW] Serving from cache:', request.url);
-
-          // For API requests, try to update cache in background
-          if (request.url.includes('format=json')) {
-            fetch(request).then((response) => {
-              if (response && response.status === 200) {
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(request, response.clone());
-                });
-              }
-            }).catch(() => {
-              // Network fetch failed, cached version already returned
-            });
-          }
-
           return cachedResponse;
         }
 
