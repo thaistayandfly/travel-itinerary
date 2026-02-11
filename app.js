@@ -2,8 +2,8 @@
 // CONFIGURATION
 // ===============================
 const CONFIG = {
-  // UPDATE THIS with your Google Apps Script web app URL
-  API_URL: 'YOUR_APPS_SCRIPT_URL_HERE',
+  // Google Apps Script web app URL
+  API_URL: 'https://script.google.com/macros/s/AKfycbwUgMk4gi8TFuBg1dTKkJYuk0--wV4rdu5U1buDZcHZv7nhQCeJT7vtQpKGqOE33qU4Eg/exec',
   CACHE_KEY: 'itinerary_cache',
   CACHE_VERSION: 'v1'
 };
