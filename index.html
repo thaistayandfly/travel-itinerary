@@ -36,8 +36,15 @@
   <!-- Loading Screen -->
   <div id="loadingScreen" class="loading-screen">
     <div class="loading-spinner"></div>
-    <p class="loading-text">Loading your itinerary...</p>
+    <p class="loading-text" id="loadingText"></p>
   </div>
+  <script>
+    // Set loading text based on URL language parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const lang = urlParams.get('lang') || 'en';
+    const loadingText = lang === 'he' ? 'טוען את המסלול שלך...' : 'Loading your itinerary...';
+    document.getElementById('loadingText').textContent = loadingText;
+  </script>
 
   <!-- Offline Badge -->
   <div id="offlineBadge" class="offline-badge">Offline Mode</div>

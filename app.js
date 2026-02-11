@@ -454,6 +454,12 @@ function renderFlight(row) {
   const hasLayover = row['Layover Airport'] && row['Layover Airport'].toString().trim();
 
   if (hasLayover) {
+    // Calculate second flight departure time
+    const firstArrival = row['Check-out / Arrival'] || '';
+    const layoverDuration = row['Layover Time'] || '';
+    const secondDeparture = addTimeAndDuration(firstArrival, layoverDuration);
+    const formattedDuration = formatDuration(layoverDuration, appState.language);
+
     // Render connection flight with layover
     return `
       <div class="info-block flight-block connection-flight">
@@ -473,13 +479,14 @@ function renderFlight(row) {
             <div class="info-item"><span>${t.to}</span>${translateCity(row['Layover Airport'])}</div>
             <div class="info-item"><span>${t.flightNumber}</span>${safe(row['Confirmation / Flight #'])}</div>
             <div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Check-in / Departure'] || ''}</div>
-            <div class="info-item"><span>${t.arrival}</span>${row['Start Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>
+            <div class="info-item"><span>${t.arrival}</span>${row['Start Date'] || '-'} ${firstArrival}</div>
           </div>
         </div>
 
         <!-- Layover Indicator -->
         <div class="layover-indicator">
-          ⏱️ ${t.layover || 'Layover'}: ${translateCity(row['Layover Airport'])}${row['Layover Time'] ? ` • ${row['Layover Time']}` : ''}
+          <div class="layover-location">🏢 ${translateCity(row['Layover Airport'])}</div>
+          ${layoverDuration ? `<div class="layover-duration">⏱️ ${t.layoverTime || 'Layover'}: ${formattedDuration}</div>` : ''}
         </div>
 
         <!-- Second Segment -->
@@ -489,7 +496,7 @@ function renderFlight(row) {
             <div class="info-item"><span>${t.from}</span>${translateCity(row['Layover Airport'])}</div>
             <div class="info-item"><span>${t.to}</span>${translateCity(row['Destination'])}</div>
             ${row['Second Flight #'] ? `<div class="info-item"><span>${t.flightNumber}</span>${safe(row['Second Flight #'])}</div>` : ''}
-            ${row['Layover Time'] ? `<div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Layover Time'] || ''}</div>` : ''}
+            ${secondDeparture ? `<div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${secondDeparture}</div>` : ''}
             ${row['Second Flight Arrival'] ? `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Second Flight Arrival'] || ''}</div>` : `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>`}
           </div>
         </div>
@@ -734,6 +741,64 @@ function renderSecurePortal() {
 // ===============================
 // UTILITY FUNCTIONS
 // ===============================
+
+/**
+ * Format duration from HH:MM to readable format
+ * Example: "02:30" → "2h 30m" (en) or "2ש 30ד" (he)
+ */
+function formatDuration(duration, lang = 'en') {
+  if (!duration) return '';
+
+  const parts = duration.toString().trim().split(':');
+  if (parts.length !== 2) return duration;
+
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+
+  if (lang === 'he') {
+    return `${hours}ש ${minutes}ד`;
+  }
+  return `${hours}h ${minutes}m`;
+}
+
+/**
+ * Add duration to a time
+ * Example: addTimeAndDuration("11:00", "02:30") → "13:30"
+ */
+function addTimeAndDuration(time, duration) {
+  if (!time || !duration) return '';
+
+  // Parse time (HH:MM)
+  const timeParts = time.toString().trim().split(':');
+  if (timeParts.length !== 2) return time;
+
+  let hours = parseInt(timeParts[0], 10);
+  let minutes = parseInt(timeParts[1], 10);
+
+  // Parse duration (HH:MM)
+  const durationParts = duration.toString().trim().split(':');
+  if (durationParts.length !== 2) return time;
+
+  const durationHours = parseInt(durationParts[0], 10);
+  const durationMinutes = parseInt(durationParts[1], 10);
+
+  // Add duration
+  minutes += durationMinutes;
+  hours += durationHours;
+
+  // Handle minute overflow
+  if (minutes >= 60) {
+    hours += Math.floor(minutes / 60);
+    minutes = minutes % 60;
+  }
+
+  // Handle hour overflow (wrap to 24h)
+  hours = hours % 24;
+
+  // Format as HH:MM
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 function groupData(data) {
   const groups = [];
   let lastKey = null;

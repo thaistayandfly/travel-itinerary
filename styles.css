@@ -408,16 +408,28 @@ html[dir="rtl"] #backToTop {
 
 .layover-indicator {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 8px;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--accent);
   margin: 12px 0;
-  padding: 8px 12px;
+  padding: 12px 14px;
   background: var(--accent-soft);
   border-radius: 8px;
   border-left: 3px solid var(--accent);
+}
+
+.layover-location {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.layover-duration {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .info-header {
@@ -773,20 +785,6 @@ html[dir="rtl"] #backToTop {
 
 .segment-layover {
   padding-top: 20px;
-}
-
-.layover-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-  margin-bottom: 12px;
-  padding: 6px 12px;
-  background: rgba(184,155,94,0.1);
-  border-radius: 8px;
-  border: 1px dashed var(--accent);
 }
 
 /* ===============================
