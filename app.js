@@ -247,12 +247,9 @@ async function fetchFromAPI() {
 
   try {
     // Force fresh fetch, bypass cache
+    // Note: cache: 'no-store' + timestamp is sufficient. Custom headers trigger CORS preflight.
     const response = await fetch(url, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
-      }
+      cache: 'no-store'
     });
 
     if (!response.ok) {
