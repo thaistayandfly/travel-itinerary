@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v2';
+const CACHE_NAME = 'itinerary-pwa-v3';
 const urlsToCache = [
   './',
   './index.html',
@@ -84,36 +84,43 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first strategy: Try network first, fall back to cache if offline
+  // This ensures users always get the latest version when online
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        // Return cached version if available
-        if (cachedResponse) {
-          console.log('[SW] Serving from cache:', request.url);
-          return cachedResponse;
+    fetch(request)
+      .then((response) => {
+        // Network succeeded - update cache and return response
+        console.log('[SW] Fetched fresh from network:', request.url);
+
+        // Don't cache if response is not valid
+        if (!response || response.status !== 200 || response.type === 'error') {
+          return response;
         }
 
-        // Not in cache, fetch from network
-        return fetch(request)
-          .then((response) => {
-            // Don't cache if response is not valid
-            if (!response || response.status !== 200 || response.type === 'error') {
-              return response;
+        // Clone the response
+        const responseToCache = response.clone();
+
+        // Update cache with fresh version
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(request, responseToCache);
+          console.log('[SW] Updated cache with fresh version:', request.url);
+        });
+
+        return response;
+      })
+      .catch((error) => {
+        // Network failed - try cache
+        console.log('[SW] Network failed, trying cache:', request.url);
+
+        return caches.match(request)
+          .then((cachedResponse) => {
+            if (cachedResponse) {
+              console.log('[SW] Serving from cache (offline):', request.url);
+              return cachedResponse;
             }
 
-            // Clone the response
-            const responseToCache = response.clone();
-
-            // Cache the fetched resource
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, responseToCache);
-              console.log('[SW] Cached new resource:', request.url);
-            });
-
-            return response;
-          })
-          .catch((error) => {
-            console.error('[SW] Fetch failed for:', request.url, error);
+            // Not in cache either - return offline fallback
+            console.error('[SW] No cache available for:', request.url, error);
 
             // Return offline fallback page for navigation requests
             if (request.mode === 'navigate') {

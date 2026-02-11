@@ -127,8 +127,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // If no URL parameters, check if we have saved parameters (for installed PWA)
     if (!params.client || !params.shid) {
-      console.log('⚠️ Missing URL parameters, checking localStorage...');
-      const savedParams = getSavedItineraryParams();
+      console.log('⚠️ Missing URL parameters, checking saved data...');
+      const savedParams = await getSavedItineraryParams();
 
       if (savedParams && savedParams.client && savedParams.shid) {
         console.log('✅ Found saved parameters:', savedParams);
@@ -166,7 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Save parameters for future use (when PWA is installed)
     console.log('💾 Saving parameters for PWA...');
-    saveItineraryParams(params);
+    await saveItineraryParams(params);
 
     appState.clientCode = params.client;
     appState.spreadsheetId = params.shid;
@@ -212,23 +212,57 @@ function getURLParams() {
   };
 }
 
-function saveItineraryParams(params) {
+async function saveItineraryParams(params) {
   try {
+    // Save to both localStorage AND IndexedDB for better persistence
+    // iOS Safari is more reliable with IndexedDB than localStorage in PWA mode
+
+    // Save to localStorage (fast, synchronous)
     localStorage.setItem('itinerary_params', JSON.stringify({
       client: params.client,
       shid: params.shid,
       lang: params.lang
     }));
-    console.log('✅ Itinerary parameters saved for installed PWA');
+
+    // Save to IndexedDB (more persistent on iOS)
+    if (db) {
+      const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
+      const store = transaction.objectStore(CONFIG.DOCS_STORE);
+      await store.put({
+        id: '__app_params__',
+        data: JSON.stringify({
+          client: params.client,
+          shid: params.shid,
+          lang: params.lang
+        }),
+        timestamp: Date.now()
+      });
+    }
+
+    console.log('✅ Itinerary parameters saved for installed PWA (localStorage + IndexedDB)');
   } catch (error) {
     console.warn('Failed to save itinerary params:', error);
   }
 }
 
-function getSavedItineraryParams() {
+async function getSavedItineraryParams() {
   try {
+    // Try IndexedDB first (more reliable on iOS)
+    if (db) {
+      const transaction = db.transaction([CONFIG.DOCS_STORE], 'readonly');
+      const store = transaction.objectStore(CONFIG.DOCS_STORE);
+      const result = await store.get('__app_params__');
+
+      if (result && result.data) {
+        console.log('📱 Loaded params from IndexedDB');
+        return JSON.parse(result.data);
+      }
+    }
+
+    // Fallback to localStorage
     const saved = localStorage.getItem('itinerary_params');
     if (saved) {
+      console.log('📱 Loaded params from localStorage');
       return JSON.parse(saved);
     }
   } catch (error) {
@@ -1240,20 +1274,17 @@ function openPDFInNewTab(base64Data) {
     const blob = new Blob([byteArray], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(blob);
 
-    // Check if iOS Safari (which has issues with blob URLs in window.open)
+    // Check if iOS Safari
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     if (isIOS) {
-      // For iOS, create a download link and trigger it
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `document_${Date.now()}.pdf`;
-      link.target = '_blank';
+      // For iOS Safari: Open in same window (Safari will handle PDF viewing)
+      // This avoids popup blockers and works better with iOS PDF viewer
+      window.location.href = blobUrl;
 
-      // Trigger the link
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Alternative: Use data URI (works but may have size limits)
+      // const dataUri = `data:application/pdf;base64,${base64Data}`;
+      // window.location.href = dataUri;
 
       // Clean up blob URL after a delay
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
