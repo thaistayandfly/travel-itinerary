@@ -1157,20 +1157,102 @@ function showSafariPWARecoveryUI() {
   loading.style.display = 'none';
   errorScreen.style.display = 'flex';
 
-  // Safari-specific recovery message
+  // Safari PWA setup screen - ask user to paste their URL
   errorMessage.innerHTML = `
-    <div style="text-align: center;">
-      <p style="margin-bottom: 20px;">Safari PWA session expired. Please open the app from Safari browser first:</p>
-      <ol style="text-align: left; display: inline-block; margin-bottom: 20px;">
-        <li>Open Safari browser</li>
-        <li>Visit your itinerary link</li>
-        <li>The app will save your session</li>
-        <li>Then you can use the home screen icon</li>
-      </ol>
-      <button onclick="window.close()" class="btn btn-secondary" style="margin-right: 10px;">Close App</button>
+    <div style="text-align: center; max-width: 500px; margin: 0 auto;">
+      <h3 style="margin-bottom: 15px;">📲 Setup Required</h3>
+      <p style="margin-bottom: 20px; color: #666;">
+        To use this app from your home screen, please paste your itinerary URL below:
+      </p>
+
+      <input
+        type="text"
+        id="setupUrlInput"
+        placeholder="Paste your itinerary link here..."
+        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 15px;"
+      />
+
+      <button
+        onclick="setupPWAFromURL()"
+        class="btn btn-primary"
+        style="width: 100%; padding: 12px; font-size: 16px; margin-bottom: 10px;"
+      >
+        Continue
+      </button>
+
+      <button
+        onclick="window.close()"
+        class="btn btn-secondary"
+        style="width: 100%; padding: 12px; font-size: 16px;"
+      >
+        Cancel
+      </button>
+
+      <p style="margin-top: 20px; font-size: 12px; color: #999;">
+        💡 Tip: Copy your itinerary URL from the email or message you received
+      </p>
     </div>
   `;
+
+  // Focus input after a delay
+  setTimeout(() => {
+    const input = document.getElementById('setupUrlInput');
+    if (input) input.focus();
+  }, 300);
 }
+
+// Setup PWA from pasted URL
+window.setupPWAFromURL = async function() {
+  const input = document.getElementById('setupUrlInput');
+  if (!input) return;
+
+  const url = input.value.trim();
+  if (!url) {
+    alert('Please paste your itinerary URL');
+    return;
+  }
+
+  try {
+    // Extract parameters from the URL (works with both ? and # formats)
+    const urlObj = new URL(url);
+    let client = null;
+    let shid = null;
+    let lang = 'en';
+
+    // Try hash params first
+    if (urlObj.hash) {
+      const hash = urlObj.hash.substring(1);
+      const hashParams = new URLSearchParams(hash);
+      client = hashParams.get('client');
+      shid = hashParams.get('shid');
+      lang = hashParams.get('lang') || 'en';
+    }
+
+    // Fallback to query params
+    if (!client || !shid) {
+      client = urlObj.searchParams.get('client');
+      shid = urlObj.searchParams.get('shid');
+      lang = urlObj.searchParams.get('lang') || 'en';
+    }
+
+    if (!client || !shid) {
+      alert('Invalid URL. Please make sure you copied the complete itinerary link.');
+      return;
+    }
+
+    // Save parameters
+    await saveItineraryParams({ client, shid, lang });
+
+    // Redirect to hash-based URL
+    const baseUrl = window.location.origin + window.location.pathname;
+    const newUrl = `${baseUrl}#client=${client}&shid=${shid}&lang=${lang}`;
+    window.location.replace(newUrl);
+
+  } catch (error) {
+    console.error('URL parsing error:', error);
+    alert('Invalid URL format. Please paste the complete itinerary link.');
+  }
+};
 
 // ===============================
 // DOCUMENT HANDLING
