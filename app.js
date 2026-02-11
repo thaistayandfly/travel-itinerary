@@ -122,10 +122,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Get URL parameters
     const params = getURLParams();
 
+    // If no URL parameters, check if we have saved parameters (for installed PWA)
     if (!params.client || !params.shid) {
-      showError('Missing required parameters: client and shid');
-      return;
+      const savedParams = getSavedItineraryParams();
+
+      if (savedParams && savedParams.client && savedParams.shid) {
+        // Redirect to the saved itinerary URL
+        const newUrl = `${window.location.origin}${window.location.pathname}?client=${savedParams.client}&shid=${savedParams.shid}&lang=${savedParams.lang}`;
+        window.location.href = newUrl;
+        return;
+      } else {
+        showError('Missing required parameters: client and shid');
+        return;
+      }
     }
+
+    // Save parameters for future use (when PWA is installed)
+    saveItineraryParams(params);
 
     appState.clientCode = params.client;
     appState.spreadsheetId = params.shid;
@@ -169,6 +182,31 @@ function getURLParams() {
     shid: params.get('shid'),
     lang: params.get('lang') || 'en'
   };
+}
+
+function saveItineraryParams(params) {
+  try {
+    localStorage.setItem('itinerary_params', JSON.stringify({
+      client: params.client,
+      shid: params.shid,
+      lang: params.lang
+    }));
+    console.log('✅ Itinerary parameters saved for installed PWA');
+  } catch (error) {
+    console.warn('Failed to save itinerary params:', error);
+  }
+}
+
+function getSavedItineraryParams() {
+  try {
+    const saved = localStorage.getItem('itinerary_params');
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (error) {
+    console.warn('Failed to load saved itinerary params:', error);
+  }
+  return null;
 }
 
 // ===============================
