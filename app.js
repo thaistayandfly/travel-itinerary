@@ -1571,7 +1571,9 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
 
   // Show result
   if (successCount > 0) {
-    alert(`✅ ${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${successCount > 1 ? 's' : ''} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`);
+    // Only add 's' for English plural, Hebrew already has plural form
+    const pluralSuffix = (successCount > 1 && appState.language === 'en') ? 's' : '';
+    alert(`✅ ${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${pluralSuffix} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`);
   } else {
     alert(`❌ ${t.downloadFailed || 'Failed to download documents'}. ${t.checkBirthYear || 'Please check your birth year and try again'}.`);
   }
