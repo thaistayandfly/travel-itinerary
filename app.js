@@ -5,8 +5,92 @@ const CONFIG = {
   // Google Apps Script web app URL
   API_URL: 'https://script.google.com/macros/s/AKfycbwUgMk4gi8TFuBg1dTKkJYuk0--wV4rdu5U1buDZcHZv7nhQCeJT7vtQpKGqOE33qU4Eg/exec',
   CACHE_KEY: 'itinerary_cache',
-  CACHE_VERSION: 'v1'
+  CACHE_VERSION: 'v1',
+  DB_NAME: 'TravelItineraryDB',
+  DB_VERSION: 1,
+  DOCS_STORE: 'documents'
 };
+
+// ===============================
+// INDEXEDDB FOR DOCUMENT STORAGE
+// ===============================
+let db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(CONFIG.DB_NAME, CONFIG.DB_VERSION);
+
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(CONFIG.DOCS_STORE)) {
+        db.createObjectStore(CONFIG.DOCS_STORE, { keyPath: 'id' });
+      }
+    };
+  });
+}
+
+async function cacheDocument(id, base64Data) {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
+    const store = transaction.objectStore(CONFIG.DOCS_STORE);
+    const request = store.put({
+      id: id,
+      data: base64Data,
+      timestamp: Date.now()
+    });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function getCachedDocument(id) {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONFIG.DOCS_STORE], 'readonly');
+    const store = transaction.objectStore(CONFIG.DOCS_STORE);
+    const request = store.get(id);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function isDocumentCached(id) {
+  try {
+    const doc = await getCachedDocument(id);
+    return !!doc;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function getAllCachedDocumentIds() {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONFIG.DOCS_STORE], 'readonly');
+    const store = transaction.objectStore(CONFIG.DOCS_STORE);
+    const request = store.getAllKeys();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function clearDocumentCache() {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
+    const store = transaction.objectStore(CONFIG.DOCS_STORE);
+    const request = store.clear();
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
 
 // ===============================
 // STATE
@@ -19,7 +103,8 @@ let appState = {
   isRTL: false,
   clientCode: null,
   spreadsheetId: null,
-  isOffline: false
+  isOffline: false,
+  cachedDocIds: []
 };
 
 // ===============================
@@ -27,6 +112,13 @@ let appState = {
 // ===============================
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    // Initialize IndexedDB
+    await openDB();
+
+    // Load cached document IDs
+    appState.cachedDocIds = await getAllCachedDocumentIds();
+    console.log(`📄 ${appState.cachedDocIds.length} documents cached offline`);
+
     // Get URL parameters
     const params = getURLParams();
 
@@ -189,6 +281,10 @@ function renderItinerary() {
   const container = document.getElementById('mainContainer');
   const loading = document.getElementById('loadingScreen');
 
+  // Count total documents
+  const totalDocs = countTotalDocuments();
+  const cachedDocs = appState.cachedDocIds.length;
+
   // Build HTML
   const html = `
     <header class="itinerary-header mb-4">
@@ -200,11 +296,27 @@ function renderItinerary() {
         </div>
         <button class="header-print" onclick="window.print()" aria-label="Print">🖨️</button>
       </div>
+
+      ${!appState.isOffline && totalDocs > 0 ? `
+        <div class="download-all-container">
+          <button
+            onclick="downloadAllDocuments()"
+            class="btn-download-all"
+            ${cachedDocs === totalDocs ? 'disabled' : ''}
+          >
+            ${cachedDocs === totalDocs
+              ? `✅ All Documents Offline (${totalDocs})`
+              : `📥 Download All for Offline (${cachedDocs}/${totalDocs})`
+            }
+          </button>
+        </div>
+      ` : ''}
     </header>
 
     ${renderSections()}
     ${renderCostSummary()}
     ${renderFooter()}
+    ${renderSecurePortal()}
   `;
 
   container.innerHTML = html;
@@ -219,6 +331,17 @@ function renderItinerary() {
       setTimeout(() => el.classList.add('reveal'), i * 120);
     });
   }, 100);
+}
+
+function countTotalDocuments() {
+  let count = 0;
+  appState.data.forEach(row => {
+    if (row['Doc Link']) {
+      const links = row['Doc Link'].toString().split(/\n|,|;/).filter(l => l.trim());
+      count += links.length;
+    }
+  });
+  return count;
 }
 
 function renderSections() {
@@ -347,7 +470,36 @@ function renderButtons(row) {
     `;
   }
 
+  if (row['Doc Link']) {
+    const docIds = row['Doc Link'].toString().split(/\n|,|;/).map(d => d.trim()).filter(Boolean);
+    const type = (row.Type || '').toString().toLowerCase();
+    const buttonLabel = getButtonLabel(type, t);
+
+    docIds.forEach((docId, i) => {
+      const cacheKey = `${appState.spreadsheetId}_${row._rowIndex}_${i}`;
+      const isCached = appState.cachedDocIds.includes(cacheKey);
+
+      html += `
+        <button
+          onclick="openDocument(${row._rowIndex}, ${i}, '${docId}')"
+          class="btn btn-sm ${isCached ? 'btn-success' : 'btn-outline-primary'}"
+        >
+          ${isCached ? '✅' : '📄'} ${buttonLabel}${docIds.length > 1 ? ` ${i + 1}` : ''}
+        </button>
+      `;
+    });
+  }
+
   return html + '</div>';
+}
+
+function getButtonLabel(type, t) {
+  if (!type) return t.viewDocument || 'View Document';
+  if (type.includes('hotel')) return t.viewHotel || 'View Hotel';
+  if (type.includes('flight')) return t.viewFlight || 'View Flight';
+  if (type.includes('ferry')) return t.viewFerry || 'View Ferry';
+  if (type.includes('taxi')) return t.viewTaxi || 'View Taxi';
+  return t.viewDocument || 'View Document';
 }
 
 function renderCostSummary() {
@@ -417,6 +569,58 @@ function renderFooter() {
         </div>
       </div>
     </footer>
+  `;
+}
+
+function renderSecurePortal() {
+  const t = appState.translations;
+  return `
+    <div id="securePortal" class="secure-portal">
+      <div class="secure-sheet">
+        <button class="secure-close" onclick="closeSecurePortal()" aria-label="Close">×</button>
+
+        <div class="secure-header">
+          <div class="secure-icon-ring">
+            <div class="secure-icon">🔐</div>
+          </div>
+          <h3 class="secure-title">${t.secureTitle || 'Secure Document'}</h3>
+          <p class="secure-subtitle">${t.secureSubtitle || 'Identity verification required'}</p>
+        </div>
+
+        <div id="loginSection" class="secure-content">
+          <label for="birthYearInput" class="secure-label">
+            ${t.birthYearLabel || 'Birth Year'}
+          </label>
+
+          <input
+            id="birthYearInput"
+            type="number"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            min="1900"
+            max="2100"
+            class="secure-input"
+            placeholder="${t.birthYearPlaceholder || 'Enter your birth year'}"
+            autocomplete="off"
+            required
+          />
+
+          <div id="portalErr" class="secure-error"></div>
+
+          <button id="verifyBtn" class="secure-btn" onclick="verifyAndLoadDocument()">
+            ${t.unlockDocument || 'Unlock Document'}
+          </button>
+
+          <div id="pdfLoading" class="secure-loading" style="display: none;">
+            ${t.verifying || 'Verifying...'}
+          </div>
+
+          <p class="secure-hint">
+            ${t.secureHint || 'This document contains sensitive travel information.'}
+          </p>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -598,4 +802,243 @@ function showError(message) {
   loading.style.display = 'none';
   errorScreen.style.display = 'flex';
   errorMessage.textContent = message;
+}
+
+// ===============================
+// DOCUMENT HANDLING
+// ===============================
+let currentDocumentContext = null;
+
+async function openDocument(rowIndex, docIndex, docId) {
+  const cacheKey = `${appState.spreadsheetId}_${rowIndex}_${docIndex}`;
+
+  // Check if document is cached
+  const cached = await getCachedDocument(cacheKey);
+
+  if (cached) {
+    // Open cached document directly (no verification needed)
+    console.log('📄 Opening cached document');
+    openPDFInNewTab(cached.data);
+  } else {
+    // Show verification portal
+    console.log('🔒 Document not cached, showing verification portal');
+    currentDocumentContext = { rowIndex, docIndex, docId, cacheKey };
+    showSecurePortal();
+  }
+}
+
+function showSecurePortal() {
+  const portal = document.getElementById('securePortal');
+  const input = document.getElementById('birthYearInput');
+  const error = document.getElementById('portalErr');
+
+  if (portal && input && error) {
+    portal.classList.add('active');
+    input.value = '';
+    error.textContent = '';
+    error.style.display = 'none';
+
+    setTimeout(() => input.focus(), 300);
+  }
+}
+
+function closeSecurePortal() {
+  const portal = document.getElementById('securePortal');
+  if (portal) {
+    portal.classList.remove('active');
+  }
+  currentDocumentContext = null;
+}
+
+async function verifyAndLoadDocument() {
+  if (!currentDocumentContext) return;
+
+  const input = document.getElementById('birthYearInput');
+  const error = document.getElementById('portalErr');
+  const loading = document.getElementById('pdfLoading');
+  const btn = document.getElementById('verifyBtn');
+
+  const birthYear = input.value.trim();
+
+  if (!birthYear) {
+    error.textContent = appState.translations.emptyBirthYear || 'Please enter your birth year';
+    error.style.display = 'block';
+    return;
+  }
+
+  // Show loading
+  loading.style.display = 'block';
+  btn.disabled = true;
+
+  try {
+    const url = `${CONFIG.API_URL}?action=getSecurePdf&spreadsheetId=${appState.spreadsheetId}&rowIndex=${currentDocumentContext.rowIndex}&docIndex=${currentDocumentContext.docIndex}&inputYear=${birthYear}&clientCode=${appState.clientCode}`;
+
+    const response = await fetch(url);
+    const result = await response.json();
+
+    if (result.success && result.data) {
+      // Cache the document
+      await cacheDocument(currentDocumentContext.cacheKey, result.data);
+
+      // Update cached IDs list
+      appState.cachedDocIds = await getAllCachedDocumentIds();
+
+      // Open document
+      openPDFInNewTab(result.data);
+
+      // Close portal
+      closeSecurePortal();
+
+      // Refresh UI to show updated offline badges
+      renderItinerary();
+
+      console.log('✅ Document cached successfully');
+    } else {
+      error.textContent = getErrorMessage(result.error);
+      error.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('Document verification error:', err);
+    error.textContent = appState.translations.connectionError || 'Connection error. Please try again.';
+    error.style.display = 'block';
+  } finally {
+    loading.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+async function downloadAllDocuments() {
+  if (appState.isOffline) {
+    alert('You must be online to download documents.');
+    return;
+  }
+
+  // Prompt for birth year once
+  const birthYear = prompt(appState.translations.birthYearLabel || 'Enter your birth year to download all documents:');
+
+  if (!birthYear || !birthYear.trim()) {
+    return;
+  }
+
+  // Collect all document references
+  const allDocs = [];
+  appState.data.forEach(row => {
+    if (row['Doc Link']) {
+      const docIds = row['Doc Link'].toString().split(/\n|,|;/).map(d => d.trim()).filter(Boolean);
+      docIds.forEach((docId, i) => {
+        const cacheKey = `${appState.spreadsheetId}_${row._rowIndex}_${i}`;
+        if (!appState.cachedDocIds.includes(cacheKey)) {
+          allDocs.push({
+            rowIndex: row._rowIndex,
+            docIndex: i,
+            docId: docId,
+            cacheKey: cacheKey
+          });
+        }
+      });
+    }
+  });
+
+  if (allDocs.length === 0) {
+    alert('All documents are already cached offline!');
+    return;
+  }
+
+  // Show progress
+  const downloadBtn = document.querySelector('.btn-download-all');
+  if (downloadBtn) {
+    downloadBtn.textContent = `📥 Downloading... 0/${allDocs.length}`;
+    downloadBtn.disabled = true;
+  }
+
+  let successCount = 0;
+  let failCount = 0;
+
+  // Download all documents
+  for (let i = 0; i < allDocs.length; i++) {
+    const doc = allDocs[i];
+
+    try {
+      const url = `${CONFIG.API_URL}?action=getSecurePdf&spreadsheetId=${appState.spreadsheetId}&rowIndex=${doc.rowIndex}&docIndex=${doc.docIndex}&inputYear=${birthYear}&clientCode=${appState.clientCode}`;
+
+      const response = await fetch(url);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        await cacheDocument(doc.cacheKey, result.data);
+        successCount++;
+        console.log(`✅ Cached document ${i + 1}/${allDocs.length}`);
+      } else {
+        failCount++;
+        console.warn(`❌ Failed to cache document ${i + 1}:`, result.error);
+
+        if (result.error === 'INVALID_VERIFICATION') {
+          // Invalid birth year - stop immediately
+          alert('Invalid birth year. Download cancelled.');
+          break;
+        }
+      }
+
+      // Update progress
+      if (downloadBtn) {
+        downloadBtn.textContent = `📥 Downloading... ${i + 1}/${allDocs.length}`;
+      }
+
+    } catch (err) {
+      failCount++;
+      console.error(`❌ Error downloading document ${i + 1}:`, err);
+    }
+
+    // Small delay to avoid overwhelming the server
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Update cached IDs list
+  appState.cachedDocIds = await getAllCachedDocumentIds();
+
+  // Show result
+  if (successCount > 0) {
+    alert(`✅ Successfully downloaded ${successCount} document${successCount > 1 ? 's' : ''} for offline access!${failCount > 0 ? `\n⚠️ ${failCount} failed.` : ''}`);
+  } else {
+    alert('❌ Failed to download documents. Please check your birth year and try again.');
+  }
+
+  // Refresh UI
+  renderItinerary();
+}
+
+function openPDFInNewTab(base64Data) {
+  try {
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    window.open(blobUrl, '_blank');
+
+    // Clean up blob URL after a delay
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+  } catch (err) {
+    console.error('Error opening PDF:', err);
+    alert('Error opening document. Please try again.');
+  }
+}
+
+function getErrorMessage(errorCode) {
+  const t = appState.translations;
+  const errorMap = {
+    TOO_MANY_ATTEMPTS: t.tooManyAttempts || 'Too many attempts',
+    INVALID_VERIFICATION: t.invalidVerification || 'Invalid verification',
+    DOCUMENT_NOT_FOUND: t.documentNotFound || 'Document not found',
+    SECURITY_ERROR: t.securityError || 'Security error',
+    CONFIG_ERROR: t.configError || 'Configuration error',
+    INVALID_SESSION: t.invalidSession || 'Invalid session'
+  };
+  return errorMap[errorCode] || (t.verificationFailed || 'Verification failed. Please try again.');
 }
