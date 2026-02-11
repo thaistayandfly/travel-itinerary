@@ -958,6 +958,21 @@ function renderSecurePortal() {
         </div>
       </div>
     </div>
+
+    <!-- Custom Notification Modal -->
+    <div id="notificationModal" class="notification-modal">
+      <div class="notification-sheet">
+        <button class="notification-close" onclick="closeNotification()" aria-label="Close">×</button>
+        <div class="notification-content">
+          <div class="notification-icon-ring">
+            <div id="notificationIcon" class="notification-icon"></div>
+          </div>
+          <h3 id="notificationTitle" class="notification-title"></h3>
+          <p id="notificationMessage" class="notification-message"></p>
+          <button id="notificationBtn" class="notification-btn" onclick="closeNotification()">OK</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -1509,6 +1524,74 @@ function setupPortalBackdropClick() {
   }
 }
 
+// ===============================
+// CUSTOM NOTIFICATION MODAL
+// ===============================
+function showNotification(title, message, type = 'success') {
+  const modal = document.getElementById('notificationModal');
+  const icon = document.getElementById('notificationIcon');
+  const titleEl = document.getElementById('notificationTitle');
+  const messageEl = document.getElementById('notificationMessage');
+  const iconRing = modal.querySelector('.notification-icon-ring');
+
+  // Set content
+  titleEl.textContent = title;
+  messageEl.textContent = message;
+
+  // Set icon and styling based on type
+  if (type === 'success') {
+    icon.textContent = '✅';
+    iconRing.style.background = 'rgba(34,197,94,0.15)';
+  } else if (type === 'error') {
+    icon.textContent = '⚠️';
+    iconRing.style.background = 'rgba(239,68,68,0.15)';
+  } else if (type === 'info') {
+    icon.textContent = 'ℹ️';
+    iconRing.style.background = 'rgba(59,130,246,0.15)';
+  }
+
+  // Show modal
+  modal.classList.add('active');
+
+  // Add keyboard and backdrop listeners
+  setupNotificationListeners();
+}
+
+function closeNotification() {
+  const modal = document.getElementById('notificationModal');
+  if (modal) {
+    modal.classList.remove('active');
+
+    // Remove event listeners
+    document.removeEventListener('keydown', handleNotificationEscapeKey);
+    modal.removeEventListener('click', handleNotificationBackdropClick);
+  }
+}
+
+function handleNotificationEscapeKey(e) {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeNotification();
+  }
+}
+
+function handleNotificationBackdropClick(e) {
+  if (e.target.id === 'notificationModal') {
+    closeNotification();
+  }
+}
+
+function setupNotificationListeners() {
+  const modal = document.getElementById('notificationModal');
+
+  // ESC key to close
+  document.addEventListener('keydown', handleNotificationEscapeKey);
+
+  // Click outside to close
+  if (modal) {
+    modal.addEventListener('click', handleNotificationBackdropClick);
+  }
+}
+
 async function verifyAndLoadDocument() {
   if (!currentDocumentContext) return;
 
@@ -1612,7 +1695,11 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
 
         if (result.error === 'INVALID_VERIFICATION') {
           // Invalid birth year - stop immediately
-          alert(appState.translations.invalidVerification || 'Invalid birth year. Download cancelled.');
+          showNotification(
+            appState.translations.securityError || 'Verification Failed',
+            appState.translations.invalidVerification || 'Invalid birth year. Download cancelled.',
+            'error'
+          );
           break;
         }
       }
@@ -1638,9 +1725,18 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
   if (successCount > 0) {
     // Only add 's' for English plural, Hebrew already has plural form
     const pluralSuffix = (successCount > 1 && appState.language === 'en') ? 's' : '';
-    alert(`✅ ${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${pluralSuffix} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`);
+    const message = `${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${pluralSuffix} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`;
+    showNotification(
+      '✅ ' + (t.downloadSuccess || 'Download Complete'),
+      message,
+      failCount > 0 ? 'info' : 'success'
+    );
   } else {
-    alert(`❌ ${t.downloadFailed || 'Failed to download documents'}. ${t.checkBirthYear || 'Please check your birth year and try again'}.`);
+    showNotification(
+      t.downloadFailed || 'Download Failed',
+      t.checkBirthYear || 'Please check your birth year and try again.',
+      'error'
+    );
   }
 
   // Refresh UI
@@ -1650,7 +1746,11 @@ async function handleBatchDownload(birthYear, error, loading, btn) {
 async function downloadAllDocuments() {
   if (appState.isOffline) {
     const t = appState.translations;
-    alert(t.connectionError || 'You must be online to download documents.');
+    showNotification(
+      t.offlineMode || 'Offline Mode',
+      t.connectionError || 'You must be online to download documents.',
+      'error'
+    );
     return;
   }
 
@@ -1675,7 +1775,11 @@ async function downloadAllDocuments() {
 
   if (allDocs.length === 0) {
     const t = appState.translations;
-    alert(t.allDocumentsCached || 'All documents are already cached offline!');
+    showNotification(
+      '✅ ' + (t.allDocumentsOffline || 'All Set'),
+      t.allDocumentsCached || 'All documents are already cached offline!',
+      'success'
+    );
     return;
   }
 

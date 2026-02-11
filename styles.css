@@ -1029,6 +1029,124 @@ html[dir="rtl"] #backToTop {
 }
 
 /* ===============================
+   NOTIFICATION MODAL (Custom Alert)
+================================ */
+.notification-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  padding: 20px;
+}
+
+.notification-modal.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.notification-sheet {
+  background: var(--card);
+  border-radius: 20px;
+  padding: 32px;
+  max-width: 420px;
+  width: 100%;
+  position: relative;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+}
+
+.notification-modal.active .notification-sheet {
+  transform: scale(1);
+}
+
+.notification-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.notification-close:hover {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
+.notification-content {
+  text-align: center;
+}
+
+.notification-icon-ring {
+  width: 80px;
+  height: 80px;
+  background: var(--accent-soft);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px auto;
+  transition: background 0.3s ease;
+}
+
+.notification-icon {
+  font-size: 2.5rem;
+}
+
+.notification-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 12px 0;
+  color: var(--ink);
+}
+
+.notification-message {
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0 0 24px 0;
+  white-space: pre-line;
+}
+
+.notification-btn {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notification-btn:hover {
+  background: #a5884f;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(184,155,94,0.3);
+}
+
+/* ===============================
    OFFLINE BADGE ON BUTTONS
 ================================ */
 .btn-success {
