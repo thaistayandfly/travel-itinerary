@@ -247,6 +247,9 @@ async function fetchFromAPI() {
     appState.translations = result.translations;
     appState.cityMap = result.cityMap;
 
+    // Update loading text with translation
+    updateLoadingText();
+
     // Cache it
     cacheData(result);
 
@@ -357,8 +360,8 @@ function renderItinerary() {
             ${cachedDocs === totalDocs ? 'disabled' : ''}
           >
             ${cachedDocs === totalDocs
-              ? `✅ All Documents Offline (${totalDocs})`
-              : `📥 Download All for Offline (${cachedDocs}/${totalDocs})`
+              ? `✅ ${appState.translations.allDocumentsOffline} (${totalDocs})`
+              : `📥 ${appState.translations.downloadAllOffline} (${cachedDocs}/${totalDocs})`
             }
           </button>
         </div>
@@ -470,13 +473,13 @@ function renderFlight(row) {
             <div class="info-item"><span>${t.to}</span>${translateCity(row['Layover Airport'])}</div>
             <div class="info-item"><span>${t.flightNumber}</span>${safe(row['Confirmation / Flight #'])}</div>
             <div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Check-in / Departure'] || ''}</div>
-            ${row['Layover Time'] ? `<div class="info-item"><span>${t.arrival}</span>${row['Start Date'] || '-'} ${row['Layover Time'] || ''}</div>` : ''}
+            <div class="info-item"><span>${t.arrival}</span>${row['Start Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>
           </div>
         </div>
 
         <!-- Layover Indicator -->
         <div class="layover-indicator">
-          ⏱️ ${t.layover || 'Layover'}: ${translateCity(row['Layover Airport'])}
+          ⏱️ ${t.layover || 'Layover'}: ${translateCity(row['Layover Airport'])}${row['Layover Time'] ? ` • ${row['Layover Time']}` : ''}
         </div>
 
         <!-- Second Segment -->
@@ -486,6 +489,7 @@ function renderFlight(row) {
             <div class="info-item"><span>${t.from}</span>${translateCity(row['Layover Airport'])}</div>
             <div class="info-item"><span>${t.to}</span>${translateCity(row['Destination'])}</div>
             ${row['Second Flight #'] ? `<div class="info-item"><span>${t.flightNumber}</span>${safe(row['Second Flight #'])}</div>` : ''}
+            ${row['Layover Time'] ? `<div class="info-item"><span>${t.departure}</span>${row['Start Date'] || '-'} ${row['Layover Time'] || ''}</div>` : ''}
             ${row['Second Flight Arrival'] ? `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Second Flight Arrival'] || ''}</div>` : `<div class="info-item"><span>${t.arrival}</span>${row['Finish Date'] || '-'} ${row['Check-out / Arrival'] || ''}</div>`}
           </div>
         </div>
@@ -891,6 +895,15 @@ function initializeInstallPrompt() {
       installPrompt.classList.remove('show');
       localStorage.setItem('installDismissed', 'true');
     });
+  }
+}
+
+function updateLoadingText() {
+  if (appState.translations && appState.translations.loadingItinerary) {
+    const loadingText = document.querySelector('.loading-text');
+    if (loadingText) {
+      loadingText.textContent = appState.translations.loadingItinerary;
+    }
   }
 }
 
