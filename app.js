@@ -1808,9 +1808,9 @@ function openPDFInNewTab(base64Data) {
     const isMobile = isIOS || isAndroid;
 
     if (isMobile) {
-      // For mobile: Open in same window (mobile browsers handle PDF viewing natively)
-      // This avoids popup blockers and works better with mobile PDF viewers
-      window.location.href = blobUrl;
+      // For mobile: Open in same window using window.open with _self target
+      // This forces the browser to open the PDF instead of downloading it
+      window.open(blobUrl, '_self');
 
       // Clean up blob URL after a delay
       setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
