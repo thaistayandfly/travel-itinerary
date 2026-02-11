@@ -1443,6 +1443,12 @@ function showSecurePortal() {
       }
     }
 
+    // Add keyboard shortcuts
+    setupPortalKeyboardShortcuts();
+
+    // Add backdrop click handler
+    setupPortalBackdropClick();
+
     setTimeout(() => input.focus(), 300);
   }
 }
@@ -1451,8 +1457,56 @@ function closeSecurePortal() {
   const portal = document.getElementById('securePortal');
   if (portal) {
     portal.classList.remove('active');
+
+    // Remove event listeners
+    document.removeEventListener('keydown', handlePortalEscapeKey);
+    portal.removeEventListener('click', handlePortalBackdropClick);
   }
   currentDocumentContext = null;
+}
+
+// Handle ESC key to close portal
+function handlePortalEscapeKey(e) {
+  if (e.key === 'Escape' || e.key === 'Esc') {
+    closeSecurePortal();
+  }
+}
+
+// Handle Enter key to trigger verification
+function handlePortalEnterKey(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    verifyAndLoadDocument();
+  }
+}
+
+// Handle clicking outside the modal to close it
+function handlePortalBackdropClick(e) {
+  // Only close if clicking directly on the portal backdrop, not the sheet
+  if (e.target.id === 'securePortal') {
+    closeSecurePortal();
+  }
+}
+
+// Setup keyboard shortcuts for the portal
+function setupPortalKeyboardShortcuts() {
+  const input = document.getElementById('birthYearInput');
+
+  // ESC key to close (document level)
+  document.addEventListener('keydown', handlePortalEscapeKey);
+
+  // ENTER key to submit (on input field)
+  if (input) {
+    input.addEventListener('keydown', handlePortalEnterKey);
+  }
+}
+
+// Setup backdrop click to close
+function setupPortalBackdropClick() {
+  const portal = document.getElementById('securePortal');
+  if (portal) {
+    portal.addEventListener('click', handlePortalBackdropClick);
+  }
 }
 
 async function verifyAndLoadDocument() {
