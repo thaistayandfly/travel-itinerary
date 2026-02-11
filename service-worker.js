@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v4';
+const CACHE_NAME = 'itinerary-pwa-v5';
 const urlsToCache = [
   './',
   './index.html',
@@ -49,6 +49,12 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
+          // NEVER delete the params cache - it's critical for Safari PWA
+          if (cacheName === 'itinerary-params-cache') {
+            console.log('[SW] Preserving params cache:', cacheName);
+            return;
+          }
+          // Delete old app caches
           if (cacheName !== CACHE_NAME) {
             console.log('[SW] Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -211,11 +217,16 @@ self.addEventListener('message', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
+          // NEVER delete the params cache - it's critical for Safari PWA
+          if (cacheName === 'itinerary-params-cache') {
+            console.log('[SW] Preserving params cache during clear');
+            return;
+          }
           return caches.delete(cacheName);
         })
       );
     }).then(() => {
-      console.log('[SW] All caches cleared');
+      console.log('[SW] All caches cleared (except params)');
       event.ports[0].postMessage({ success: true });
     });
   }

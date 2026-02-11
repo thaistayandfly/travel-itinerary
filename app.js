@@ -266,6 +266,20 @@ async function saveItineraryParams(params) {
     sessionStorage.setItem('itinerary_params', JSON.stringify(paramsData));
     console.log('✅ Saved to sessionStorage (Safari backup)');
 
+    // CRITICAL for Safari PWA: Save to Cache API (most persistent in PWA mode)
+    if ('caches' in window) {
+      try {
+        const cache = await caches.open('itinerary-params-cache');
+        const response = new Response(JSON.stringify(paramsData), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+        await cache.put('/params.json', response);
+        console.log('✅ Saved to Cache API (Safari PWA)');
+      } catch (cacheError) {
+        console.warn('Cache API save failed:', cacheError);
+      }
+    }
+
     console.log('✅ Itinerary parameters saved for installed PWA (all storages)');
   } catch (error) {
     console.error('Failed to save itinerary params:', error);
@@ -274,7 +288,22 @@ async function saveItineraryParams(params) {
 
 async function getSavedItineraryParams() {
   try {
-    // Try IndexedDB first (more reliable on iOS) - properly wrapped in Promise
+    // CRITICAL for Safari PWA: Try Cache API FIRST (most persistent in PWA mode)
+    if ('caches' in window) {
+      try {
+        const cache = await caches.open('itinerary-params-cache');
+        const response = await cache.match('/params.json');
+        if (response) {
+          const data = await response.json();
+          console.log('📱 Loaded params from Cache API (Safari PWA)');
+          return data;
+        }
+      } catch (cacheError) {
+        console.warn('Cache API read failed:', cacheError);
+      }
+    }
+
+    // Try IndexedDB second (reliable on iOS browser mode)
     if (db) {
       try {
         const result = await new Promise((resolve, reject) => {
