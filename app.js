@@ -808,6 +808,7 @@ function showError(message) {
 // DOCUMENT HANDLING
 // ===============================
 let currentDocumentContext = null;
+let downloadAllMode = false;
 
 async function openDocument(rowIndex, docIndex, docId) {
   const cacheKey = `${appState.spreadsheetId}_${rowIndex}_${docIndex}`;
@@ -822,6 +823,7 @@ async function openDocument(rowIndex, docIndex, docId) {
   } else {
     // Show verification portal
     console.log('🔒 Document not cached, showing verification portal');
+    downloadAllMode = false;
     currentDocumentContext = { rowIndex, docIndex, docId, cacheKey };
     showSecurePortal();
   }
@@ -866,6 +868,15 @@ async function verifyAndLoadDocument() {
     return;
   }
 
+  // Check if this is download all mode or single document mode
+  if (downloadAllMode) {
+    await handleBatchDownload(birthYear, error, loading, btn);
+  } else {
+    await handleSingleDocument(birthYear, error, loading, btn);
+  }
+}
+
+async function handleSingleDocument(birthYear, error, loading, btn) {
   // Show loading
   loading.style.display = 'block';
   btn.disabled = true;
@@ -907,44 +918,13 @@ async function verifyAndLoadDocument() {
   }
 }
 
-async function downloadAllDocuments() {
-  if (appState.isOffline) {
-    alert('You must be online to download documents.');
-    return;
-  }
+async function handleBatchDownload(birthYear, error, loading, btn) {
+  const allDocs = currentDocumentContext.allDocs;
 
-  // Prompt for birth year once
-  const birthYear = prompt(appState.translations.birthYearLabel || 'Enter your birth year to download all documents:');
+  // Close portal
+  closeSecurePortal();
 
-  if (!birthYear || !birthYear.trim()) {
-    return;
-  }
-
-  // Collect all document references
-  const allDocs = [];
-  appState.data.forEach(row => {
-    if (row['Doc Link']) {
-      const docIds = row['Doc Link'].toString().split(/\n|,|;/).map(d => d.trim()).filter(Boolean);
-      docIds.forEach((docId, i) => {
-        const cacheKey = `${appState.spreadsheetId}_${row._rowIndex}_${i}`;
-        if (!appState.cachedDocIds.includes(cacheKey)) {
-          allDocs.push({
-            rowIndex: row._rowIndex,
-            docIndex: i,
-            docId: docId,
-            cacheKey: cacheKey
-          });
-        }
-      });
-    }
-  });
-
-  if (allDocs.length === 0) {
-    alert('All documents are already cached offline!');
-    return;
-  }
-
-  // Show progress
+  // Show progress on the download button
   const downloadBtn = document.querySelector('.btn-download-all');
   if (downloadBtn) {
     downloadBtn.textContent = `📥 Downloading... 0/${allDocs.length}`;
@@ -974,7 +954,7 @@ async function downloadAllDocuments() {
 
         if (result.error === 'INVALID_VERIFICATION') {
           // Invalid birth year - stop immediately
-          alert('Invalid birth year. Download cancelled.');
+          alert(appState.translations.invalidVerification || 'Invalid birth year. Download cancelled.');
           break;
         }
       }
@@ -997,14 +977,53 @@ async function downloadAllDocuments() {
   appState.cachedDocIds = await getAllCachedDocumentIds();
 
   // Show result
+  const t = appState.translations;
   if (successCount > 0) {
-    alert(`✅ Successfully downloaded ${successCount} document${successCount > 1 ? 's' : ''} for offline access!${failCount > 0 ? `\n⚠️ ${failCount} failed.` : ''}`);
+    alert(`✅ ${t.downloadSuccess || 'Successfully downloaded'} ${successCount} ${t.documents || 'document'}${successCount > 1 ? 's' : ''} ${t.forOffline || 'for offline access'}!${failCount > 0 ? `\n⚠️ ${failCount} ${t.failed || 'failed'}.` : ''}`);
   } else {
-    alert('❌ Failed to download documents. Please check your birth year and try again.');
+    alert(`❌ ${t.downloadFailed || 'Failed to download documents'}. ${t.checkBirthYear || 'Please check your birth year and try again'}.`);
   }
 
   // Refresh UI
   renderItinerary();
+}
+
+async function downloadAllDocuments() {
+  if (appState.isOffline) {
+    const t = appState.translations;
+    alert(t.connectionError || 'You must be online to download documents.');
+    return;
+  }
+
+  // Collect all document references
+  const allDocs = [];
+  appState.data.forEach(row => {
+    if (row['Doc Link']) {
+      const docIds = row['Doc Link'].toString().split(/\n|,|;/).map(d => d.trim()).filter(Boolean);
+      docIds.forEach((docId, i) => {
+        const cacheKey = `${appState.spreadsheetId}_${row._rowIndex}_${i}`;
+        if (!appState.cachedDocIds.includes(cacheKey)) {
+          allDocs.push({
+            rowIndex: row._rowIndex,
+            docIndex: i,
+            docId: docId,
+            cacheKey: cacheKey
+          });
+        }
+      });
+    }
+  });
+
+  if (allDocs.length === 0) {
+    const t = appState.translations;
+    alert(t.allDocumentsCached || 'All documents are already cached offline!');
+    return;
+  }
+
+  // Show verification portal in "download all" mode
+  downloadAllMode = true;
+  currentDocumentContext = { allDocs };
+  showSecurePortal();
 }
 
 function openPDFInNewTab(base64Data) {
