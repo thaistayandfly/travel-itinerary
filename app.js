@@ -204,6 +204,7 @@ function renderItinerary() {
 
     ${renderSections()}
     ${renderCostSummary()}
+    ${renderFooter()}
   `;
 
   container.innerHTML = html;
@@ -370,6 +371,52 @@ function renderCostSummary() {
         </div>
       </div>
     </div>
+  `;
+}
+
+function renderFooter() {
+  const t = appState.translations;
+  const currentYear = new Date().getFullYear();
+
+  return `
+    <footer class="mt-5 pt-4">
+      <div class="card">
+        <div class="card-body text-center">
+
+          <!-- Brand -->
+          <p class="mb-1 fw-semibold" style="font-size:0.9rem;">
+            © ${currentYear} · ${t.footerBrand}
+          </p>
+
+          <p class="text-muted mb-3" style="font-size:0.8rem;">
+            ${t.footerPowered} <strong>Thaistayandfly</strong>
+          </p>
+
+          <!-- Divider -->
+          <hr>
+
+          <!-- Trust Copy -->
+          <div class="text-muted" style="font-size:0.78rem; line-height:1.6;">
+
+            <p class="mb-1">
+              ${t.footerTrust1}
+            </p>
+
+            <p class="mb-1">
+              ${t.footerTrust2}
+              <strong>${t.footerHours}</strong>
+              ${t.footerBefore}
+            </p>
+
+            <p class="mb-0">
+              ${t.footerTrust3}
+            </p>
+
+          </div>
+
+        </div>
+      </div>
+    </footer>
   `;
 }
 
