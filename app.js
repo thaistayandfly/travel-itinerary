@@ -92,6 +92,59 @@ async function clearDocumentCache() {
   });
 }
 
+async function deleteDocument(cacheKey) {
+  if (!db) await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([CONFIG.DOCS_STORE], 'readwrite');
+    const store = transaction.objectStore(CONFIG.DOCS_STORE);
+    const request = store.delete(cacheKey);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Clean up orphaned cache entries that no longer exist in current data
+ * This prevents the cache counter from showing incorrect numbers
+ */
+async function cleanupOrphanedCache() {
+  if (!appState.data || !appState.spreadsheetId) return;
+
+  try {
+    // Get all currently valid document cache keys from the data
+    const validKeys = new Set();
+    appState.data.forEach(row => {
+      if (row['Doc Link']) {
+        const docIds = row['Doc Link'].toString().split(/\n|,|;/).map(d => d.trim()).filter(Boolean);
+        docIds.forEach((docId, i) => {
+          const cacheKey = `${appState.spreadsheetId}_${row._rowIndex}_${i}`;
+          validKeys.add(cacheKey);
+        });
+      }
+    });
+
+    // Get all cached keys
+    const cachedKeys = await getAllCachedDocumentIds();
+
+    // Find orphaned keys (cached but not in current data)
+    const orphanedKeys = cachedKeys.filter(key => !validKeys.has(key));
+
+    // Delete orphaned entries
+    if (orphanedKeys.length > 0) {
+      console.log(`🧹 Cleaning up ${orphanedKeys.length} orphaned cache entries`);
+      for (const key of orphanedKeys) {
+        await deleteDocument(key);
+      }
+
+      // Refresh cached doc IDs
+      appState.cachedDocIds = await getAllCachedDocumentIds();
+      console.log(`✅ Cache cleaned. ${appState.cachedDocIds.length} documents remain`);
+    }
+  } catch (error) {
+    console.error('Error cleaning cache:', error);
+  }
+}
+
 // ===============================
 // STATE
 // ===============================
@@ -414,6 +467,9 @@ async function fetchFromAPI() {
     // Update loading text with translation
     updateLoadingText();
 
+    // Clean up orphaned cached documents
+    await cleanupOrphanedCache();
+
     // Cache it
     cacheData(result);
 
@@ -429,6 +485,7 @@ async function fetchFromAPI() {
       appState.data = cached.data;
       appState.translations = cached.translations;
       appState.cityMap = cached.cityMap;
+      await cleanupOrphanedCache();
       renderItinerary();
       showOfflineBadge(true);
     } else {
@@ -448,6 +505,8 @@ async function loadFromCache() {
   appState.data = cached.data;
   appState.translations = cached.translations;
   appState.cityMap = cached.cityMap;
+
+  await cleanupOrphanedCache();
 
   renderItinerary();
   showOfflineBadge(true);
