@@ -1792,52 +1792,45 @@ async function downloadAllDocuments() {
 function openPDFInNewTab(base64Data) {
   try {
     // Detect browser capabilities
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isAndroid = /Android/.test(navigator.userAgent);
-    const isMobile = isIOS || isAndroid;
     const isSamsungBrowser = /SamsungBrowser/i.test(navigator.userAgent);
 
     // Samsung Internet and some other browsers don't support native PDF rendering
     // Use PDF.js for those browsers
-    const needsPDFJS = isSamsungBrowser;
-
-    if (isMobile) {
-      if (needsPDFJS) {
-        // Use PDF.js renderer for Samsung Internet and other browsers without native PDF support
-        createPDFJSViewer(base64Data);
-      } else {
-        // Use native rendering for Chrome, Safari, etc.
-        const dataUri = `data:application/pdf;base64,${base64Data}`;
-        createMobilePDFViewer(dataUri);
-      }
-    } else {
-      // Desktop: use blob URL
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(blob);
-
-      const newWindow = window.open(blobUrl, '_blank');
-
-      if (!newWindow) {
-        // Fallback if popup blocked
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.target = '_blank';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-
-      // Clean up blob URL after a delay
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    if (isSamsungBrowser) {
+      // Use PDF.js renderer for Samsung Internet
+      createPDFJSViewer(base64Data);
+      return;
     }
+
+    // For all other browsers (Chrome, Safari, Firefox, etc.), use native rendering
+    // Convert base64 to blob for better compatibility
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+
+    const byteArray = new Uint8Array(byteNumbers);
+    const blob = new Blob([byteArray], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    // Open PDF in new tab/window
+    const newWindow = window.open(blobUrl, '_blank');
+
+    if (!newWindow) {
+      // Fallback if popup blocked
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Clean up blob URL after a delay
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+
   } catch (err) {
     console.error('Error opening PDF:', err);
     showNotification(
@@ -2095,15 +2088,33 @@ async function createPDFJSViewer(base64Data) {
 
     async function renderPage(pageNum) {
       const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.5 });
 
-      // Adjust for mobile screens
+      // Use device pixel ratio for crisp rendering on high-DPI screens
+      const devicePixelRatio = window.devicePixelRatio || 1;
+      const baseScale = 2.0; // Increased base scale for better readability
+
+      // Calculate viewport at base scale
+      const viewport = page.getViewport({ scale: baseScale });
+
+      // Adjust for mobile screen width
       const maxWidth = window.innerWidth - 40;
-      const scale = maxWidth < viewport.width ? maxWidth / viewport.width * 1.5 : 1.5;
-      const scaledViewport = page.getViewport({ scale });
+      let finalScale = baseScale;
 
+      if (viewport.width > maxWidth) {
+        // Scale down to fit screen width while maintaining quality
+        finalScale = (maxWidth / viewport.width) * baseScale;
+      }
+
+      // Apply device pixel ratio for crisp rendering
+      const scaledViewport = page.getViewport({ scale: finalScale * devicePixelRatio });
+
+      // Set canvas size (actual pixels)
       canvas.width = scaledViewport.width;
       canvas.height = scaledViewport.height;
+
+      // Set display size (CSS pixels)
+      canvas.style.width = `${scaledViewport.width / devicePixelRatio}px`;
+      canvas.style.height = `${scaledViewport.height / devicePixelRatio}px`;
 
       const renderContext = {
         canvasContext: canvas.getContext('2d'),
