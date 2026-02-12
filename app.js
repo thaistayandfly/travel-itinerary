@@ -2054,11 +2054,18 @@ async function createPDFJSViewer(base64Data) {
 
     console.log('Loading PDF document...');
 
-    // Load PDF with error handling
+    // Load PDF with complete font support
     const loadingTask = pdfjsLib.getDocument({
       data: atob(base64Data),
+      // Character maps for non-Latin text (Chinese, Japanese, etc.)
       cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-      cMapPacked: true
+      cMapPacked: true,
+      // Standard fonts for proper text rendering (Times, Helvetica, Courier, etc.)
+      standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/',
+      // Disable font face to force proper font loading
+      disableFontFace: false,
+      // Use system fonts as fallback
+      useSystemFonts: false
     });
 
     const pdf = await loadingTask.promise;
