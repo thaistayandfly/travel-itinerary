@@ -1791,17 +1791,27 @@ async function downloadAllDocuments() {
 
 function openPDFInNewTab(base64Data) {
   try {
-    // Detect browsers
+    // Detect browser capabilities
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isAndroid = /Android/.test(navigator.userAgent);
     const isMobile = isIOS || isAndroid;
+    const isSamsungBrowser = /SamsungBrowser/i.test(navigator.userAgent);
+
+    // Samsung Internet and some other browsers don't support native PDF rendering
+    // Use PDF.js for those browsers
+    const needsPDFJS = isSamsungBrowser;
 
     if (isMobile) {
-      // For mobile: Use data URI directly (works better on Samsung Internet)
-      const dataUri = `data:application/pdf;base64,${base64Data}`;
-      createMobilePDFViewer(dataUri);
+      if (needsPDFJS) {
+        // Use PDF.js renderer for Samsung Internet and other browsers without native PDF support
+        createPDFJSViewer(base64Data);
+      } else {
+        // Use native rendering for Chrome, Safari, etc.
+        const dataUri = `data:application/pdf;base64,${base64Data}`;
+        createMobilePDFViewer(dataUri);
+      }
     } else {
-      // For desktop: use blob URL
+      // Desktop: use blob URL
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
 
@@ -1963,6 +1973,208 @@ function createMobilePDFViewer(pdfUrl) {
     }
   };
   document.addEventListener('keydown', handleEsc);
+}
+
+// PDF.js-based viewer for browsers without native PDF support (Samsung Internet, etc.)
+async function createPDFJSViewer(base64Data) {
+  try {
+    // Check if PDF.js is loaded
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('PDF.js library not loaded');
+    }
+
+    // Create full-screen viewer overlay
+    const viewer = document.createElement('div');
+    viewer.id = 'pdfJsViewer';
+    viewer.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: #1c1f24;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+    `;
+
+    // Create header with controls
+    const header = document.createElement('div');
+    header.style.cssText = `
+      background: #2a2d34;
+      color: white;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 56px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    `;
+
+    const title = document.createElement('span');
+    title.textContent = 'Document';
+    title.style.cssText = 'font-weight: 600; font-size: 16px;';
+
+    const controls = document.createElement('div');
+    controls.style.cssText = 'display: flex; align-items: center; gap: 16px;';
+
+    // Page navigation
+    const pageInfo = document.createElement('span');
+    pageInfo.id = 'pdfPageInfo';
+    pageInfo.style.cssText = 'font-size: 14px; color: #aaa;';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '◀';
+    prevBtn.style.cssText = `
+      background: #3a3d44;
+      border: none;
+      color: white;
+      font-size: 18px;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 6px;
+    `;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '▶';
+    nextBtn.style.cssText = prevBtn.style.cssText;
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = '✕';
+    closeBtn.style.cssText = `
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      padding: 8px;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+    `;
+
+    controls.appendChild(prevBtn);
+    controls.appendChild(pageInfo);
+    controls.appendChild(nextBtn);
+    controls.appendChild(closeBtn);
+
+    header.appendChild(title);
+    header.appendChild(controls);
+
+    // Create canvas container with scrolling
+    const canvasContainer = document.createElement('div');
+    canvasContainer.style.cssText = `
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      background: #1c1f24;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 20px;
+    `;
+
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = `
+      max-width: 100%;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      background: white;
+    `;
+
+    canvasContainer.appendChild(canvas);
+    viewer.appendChild(header);
+    viewer.appendChild(canvasContainer);
+    document.body.appendChild(viewer);
+
+    // Load and render PDF
+    const loadingTask = pdfjsLib.getDocument({ data: atob(base64Data) });
+    const pdf = await loadingTask.promise;
+
+    let currentPage = 1;
+    const numPages = pdf.numPages;
+
+    async function renderPage(pageNum) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.5 });
+
+      // Adjust for mobile screens
+      const maxWidth = window.innerWidth - 40;
+      const scale = maxWidth < viewport.width ? maxWidth / viewport.width * 1.5 : 1.5;
+      const scaledViewport = page.getViewport({ scale });
+
+      canvas.width = scaledViewport.width;
+      canvas.height = scaledViewport.height;
+
+      const renderContext = {
+        canvasContext: canvas.getContext('2d'),
+        viewport: scaledViewport
+      };
+
+      await page.render(renderContext).promise;
+
+      pageInfo.textContent = `${pageNum} / ${numPages}`;
+      prevBtn.disabled = pageNum === 1;
+      nextBtn.disabled = pageNum === numPages;
+
+      // Style disabled buttons
+      prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
+      nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
+    }
+
+    // Initial render
+    await renderPage(currentPage);
+
+    // Navigation handlers
+    prevBtn.onclick = async () => {
+      if (currentPage > 1) {
+        currentPage--;
+        await renderPage(currentPage);
+        canvasContainer.scrollTop = 0;
+      }
+    };
+
+    nextBtn.onclick = async () => {
+      if (currentPage < numPages) {
+        currentPage++;
+        await renderPage(currentPage);
+        canvasContainer.scrollTop = 0;
+      }
+    };
+
+    closeBtn.onclick = () => {
+      document.body.removeChild(viewer);
+      document.removeEventListener('keydown', handleKeys);
+    };
+
+    // Keyboard navigation
+    const handleKeys = async (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        document.body.removeChild(viewer);
+        document.removeEventListener('keydown', handleKeys);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        if (currentPage > 1) {
+          currentPage--;
+          await renderPage(currentPage);
+          canvasContainer.scrollTop = 0;
+        }
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        if (currentPage < numPages) {
+          currentPage++;
+          await renderPage(currentPage);
+          canvasContainer.scrollTop = 0;
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeys);
+
+  } catch (err) {
+    console.error('Error rendering PDF with PDF.js:', err);
+    showNotification(
+      'Error',
+      'Error rendering document. Please try again.',
+      'error'
+    );
+  }
 }
 
 function getErrorMessage(errorCode) {
