@@ -2043,8 +2043,6 @@ async function createPDFJSViewer(base64Data) {
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       background: white;
       display: block;
-      max-width: 100%;
-      height: auto;
     `;
 
     canvasContainer.appendChild(canvas);
