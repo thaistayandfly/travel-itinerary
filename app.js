@@ -2062,10 +2062,10 @@ async function createPDFJSViewer(base64Data) {
       cMapPacked: true,
       // Standard fonts for proper text rendering (Times, Helvetica, Courier, etc.)
       standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/',
-      // Disable font face to force proper font loading
+      // Enable font-face for embedded fonts (SegoeUI, Liberation Serif, etc.)
       disableFontFace: false,
-      // Use system fonts as fallback
-      useSystemFonts: false
+      // Enable system fonts as fallback for better compatibility
+      useSystemFonts: true
     });
 
     const pdf = await loadingTask.promise;
