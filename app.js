@@ -1791,19 +1791,32 @@ async function downloadAllDocuments() {
 
 function openPDFInNewTab(base64Data) {
   try {
-    // Detect browser capabilities
+    // Detect browser and platform
     const isSamsungBrowser = /SamsungBrowser/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
 
-    // Samsung Internet and some other browsers don't support native PDF rendering
-    // Use PDF.js for those browsers
+    // Use PDF.js for Samsung Internet (doesn't support native PDF)
+    // Use native rendering for iOS Safari and Chrome
     if (isSamsungBrowser) {
-      // Use PDF.js renderer for Samsung Internet
       createPDFJSViewer(base64Data);
       return;
     }
 
-    // For all other browsers (Chrome, Safari, Firefox, etc.), use native rendering
-    // Convert base64 to blob for better compatibility
+    // For iOS Safari and Chrome: use data URI (works better than blob URL on iOS)
+    if (isIOS || isSafari) {
+      const dataUri = `data:application/pdf;base64,${base64Data}`;
+      const link = document.createElement('a');
+      link.href = dataUri;
+      link.target = '_blank';
+      link.download = 'document.pdf'; // Provides download option if viewer fails
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      return;
+    }
+
+    // For Android Chrome and desktop browsers: use blob URL
     const byteCharacters = atob(base64Data);
     const byteNumbers = new Array(byteCharacters.length);
 
@@ -2099,8 +2112,9 @@ async function createPDFJSViewer(base64Data) {
       const containerWidth = window.innerWidth - 40;
       const displayScale = containerWidth / baseViewport.width;
 
-      // Quality boost for sharper text (2.0x gives excellent quality)
-      const qualityBoost = 2.0;
+      // Ultra-high quality boost for crystal-clear text on mobile
+      // Using 4.0x for excellent text clarity
+      const qualityBoost = 4.0;
 
       // Render scale = display scale × pixel ratio × quality boost
       const renderScale = displayScale * devicePixelRatio * qualityBoost;
