@@ -2054,19 +2054,15 @@ async function createPDFJSViewer(base64Data) {
 
     console.log('Loading PDF document...');
 
-    // Load PDF with complete font support
-    const loadingTask = pdfjsLib.getDocument({
-      data: atob(base64Data),
-      // Character maps for non-Latin text (Chinese, Japanese, etc.)
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
-      cMapPacked: true,
-      // Standard fonts for proper text rendering (Times, Helvetica, Courier, etc.)
-      standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/',
-      // Enable font-face for embedded fonts (SegoeUI, Liberation Serif, etc.)
-      disableFontFace: false,
-      // Enable system fonts as fallback for better compatibility
-      useSystemFonts: true
-    });
+    // Convert base64 to Uint8Array (proper binary format for PDF.js)
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // Load PDF with Uint8Array (same as working example)
+    const loadingTask = pdfjsLib.getDocument({ data: bytes });
 
     const pdf = await loadingTask.promise;
     console.log(`PDF loaded: ${pdf.numPages} pages`);
