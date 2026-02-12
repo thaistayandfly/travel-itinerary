@@ -1791,37 +1791,35 @@ async function downloadAllDocuments() {
 
 function openPDFInNewTab(base64Data) {
   try {
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-
     // Detect browsers
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isAndroid = /Android/.test(navigator.userAgent);
-    const isSamsungBrowser = /SamsungBrowser/.test(navigator.userAgent);
     const isMobile = isIOS || isAndroid;
 
     if (isMobile) {
-      // For mobile: Create a full-screen iframe viewer
-      // This works better across all mobile browsers including Samsung Internet
-      createMobilePDFViewer(blobUrl);
+      // For mobile: Use data URI directly (works better on Samsung Internet)
+      const dataUri = `data:application/pdf;base64,${base64Data}`;
+      createMobilePDFViewer(dataUri);
     } else {
-      // For desktop browsers, use window.open
+      // For desktop: use blob URL
+      const byteCharacters = atob(base64Data);
+      const byteNumbers = new Array(byteCharacters.length);
+
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const blobUrl = URL.createObjectURL(blob);
+
       const newWindow = window.open(blobUrl, '_blank');
 
       if (!newWindow) {
-        // Fallback if popup blocked - try to open without download attribute
+        // Fallback if popup blocked
         const link = document.createElement('a');
         link.href = blobUrl;
         link.target = '_blank';
-        // Don't set download attribute - let the browser decide to open or download
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -1840,7 +1838,7 @@ function openPDFInNewTab(base64Data) {
   }
 }
 
-function createMobilePDFViewer(blobUrl) {
+function createMobilePDFViewer(pdfUrl) {
   // Create full-screen PDF viewer overlay
   const viewer = document.createElement('div');
   viewer.id = 'pdfViewer';
@@ -1852,6 +1850,9 @@ function createMobilePDFViewer(blobUrl) {
     display: flex;
     flex-direction: column;
   `;
+
+  // Check if it's a blob URL (needs cleanup) or data URI (no cleanup needed)
+  const isBlobUrl = pdfUrl.startsWith('blob:');
 
   // Create header with close button
   const header = document.createElement('div');
@@ -1887,7 +1888,10 @@ function createMobilePDFViewer(blobUrl) {
   `;
   closeBtn.onclick = () => {
     document.body.removeChild(viewer);
-    URL.revokeObjectURL(blobUrl);
+    // Only revoke blob URLs, not data URIs
+    if (isBlobUrl) {
+      URL.revokeObjectURL(pdfUrl);
+    }
   };
 
   header.appendChild(title);
@@ -1895,7 +1899,7 @@ function createMobilePDFViewer(blobUrl) {
 
   // Create iframe for PDF
   const iframe = document.createElement('iframe');
-  iframe.src = blobUrl;
+  iframe.src = pdfUrl;
   iframe.style.cssText = `
     flex: 1;
     border: none;
@@ -1912,7 +1916,10 @@ function createMobilePDFViewer(blobUrl) {
   const handleEsc = (e) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       document.body.removeChild(viewer);
-      URL.revokeObjectURL(blobUrl);
+      // Only revoke blob URLs, not data URIs
+      if (isBlobUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
       document.removeEventListener('keydown', handleEsc);
     }
   };
