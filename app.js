@@ -2089,36 +2089,47 @@ async function createPDFJSViewer(base64Data) {
     async function renderPage(pageNum) {
       const page = await pdf.getPage(pageNum);
 
-      // Use device pixel ratio for crisp rendering on high-DPI screens
+      // Get device pixel ratio for high-DPI screens
       const devicePixelRatio = window.devicePixelRatio || 1;
-      const baseScale = 2.0; // Increased base scale for better readability
 
-      // Calculate viewport at base scale
-      const viewport = page.getViewport({ scale: baseScale });
+      // Get page dimensions at scale 1
+      const baseViewport = page.getViewport({ scale: 1 });
 
-      // Adjust for mobile screen width
-      const maxWidth = window.innerWidth - 40;
-      let finalScale = baseScale;
+      // Calculate the scale needed to fit container width
+      const containerWidth = window.innerWidth - 40;
+      const scaleToFit = containerWidth / baseViewport.width;
 
-      if (viewport.width > maxWidth) {
-        // Scale down to fit screen width while maintaining quality
-        finalScale = (maxWidth / viewport.width) * baseScale;
-      }
+      // Use a high-quality scale (minimum 2.5x, or higher if needed for small PDFs)
+      // Multiply by devicePixelRatio for crisp rendering on retina displays
+      const renderScale = Math.max(2.5, scaleToFit) * devicePixelRatio;
 
-      // Apply device pixel ratio for crisp rendering
-      const scaledViewport = page.getViewport({ scale: finalScale * devicePixelRatio });
+      // Create viewport at high resolution
+      const viewport = page.getViewport({ scale: renderScale });
 
-      // Set canvas size (actual pixels)
-      canvas.width = scaledViewport.width;
-      canvas.height = scaledViewport.height;
+      // Set canvas internal resolution (high quality)
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-      // Set display size (CSS pixels)
-      canvas.style.width = `${scaledViewport.width / devicePixelRatio}px`;
-      canvas.style.height = `${scaledViewport.height / devicePixelRatio}px`;
+      // Set canvas display size (CSS pixels) to fit container
+      const displayWidth = viewport.width / devicePixelRatio;
+      const displayHeight = viewport.height / devicePixelRatio;
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
+
+      // Get canvas context with quality settings
+      const ctx = canvas.getContext('2d', {
+        alpha: false,
+        desynchronized: false
+      });
+
+      // Enable font smoothing for better text rendering
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       const renderContext = {
-        canvasContext: canvas.getContext('2d'),
-        viewport: scaledViewport
+        canvasContext: ctx,
+        viewport: viewport,
+        intent: 'print' // Use print quality for sharper text
       };
 
       await page.render(renderContext).promise;
