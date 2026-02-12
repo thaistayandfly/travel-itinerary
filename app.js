@@ -1897,9 +1897,8 @@ function createMobilePDFViewer(pdfUrl) {
   header.appendChild(title);
   header.appendChild(closeBtn);
 
-  // Create iframe for PDF
+  // Create iframe with proper HTML wrapper for PDF
   const iframe = document.createElement('iframe');
-  iframe.src = pdfUrl;
   iframe.style.cssText = `
     flex: 1;
     border: none;
@@ -1907,6 +1906,46 @@ function createMobilePDFViewer(pdfUrl) {
     height: 100%;
     background: white;
   `;
+
+  // For data URIs, wrap in proper HTML document
+  if (pdfUrl.startsWith('data:')) {
+    // Create an HTML wrapper that properly embeds the PDF
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+          }
+          object {
+            width: 100%;
+            height: 100%;
+            border: none;
+          }
+        </style>
+      </head>
+      <body>
+        <object data="${pdfUrl}" type="application/pdf" width="100%" height="100%">
+          <p>Unable to display PDF. Your browser does not support embedded PDFs.</p>
+        </object>
+      </body>
+      </html>
+    `;
+
+    // Create a data URI for the HTML wrapper
+    const htmlDataUri = 'data:text/html;charset=utf-8,' + encodeURIComponent(htmlContent);
+    iframe.src = htmlDataUri;
+  } else {
+    // For blob URLs, use directly
+    iframe.src = pdfUrl;
+  }
 
   viewer.appendChild(header);
   viewer.appendChild(iframe);
