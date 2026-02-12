@@ -2073,10 +2073,10 @@ async function createPDFJSViewer(base64Data) {
     // Get canvas context once (same as working example)
     const ctx = canvas.getContext('2d');
 
-    async function renderPage(pageNum) {
-      try {
+    // Synchronous renderPage function using .then() (EXACTLY like working example)
+    function renderPage(pageNum) {
+      pdf.getPage(pageNum).then(page => {
         console.log(`Rendering page ${pageNum}...`);
-        const page = await pdf.getPage(pageNum);
 
         // Fit width to screen - account for padding on both sides (20px * 2 = 40px)
         const containerWidth = canvasContainer.clientWidth - 40;
@@ -2098,13 +2098,13 @@ async function createPDFJSViewer(base64Data) {
         // Apply transform for high-DPI rendering
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
-        // Render the PDF page
+        // Render the PDF page (no .promise, no await)
         page.render({
           canvasContext: ctx,
           viewport: scaledViewport
         });
 
-        // Update UI (synchronously like working example)
+        // Update UI
         pageInfo.textContent = `${pageNum} / ${numPages}`;
         prevBtn.disabled = pageNum === 1;
         nextBtn.disabled = pageNum === numPages;
@@ -2116,29 +2116,25 @@ async function createPDFJSViewer(base64Data) {
         nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
 
         console.log(`Page ${pageNum} rendered`);
-
-      } catch (renderErr) {
-        console.error(`Error rendering page ${pageNum}:`, renderErr);
-        throw renderErr;
-      }
+      });
     }
 
     // Initial render
-    await renderPage(currentPage);
+    renderPage(currentPage);
 
-    // Navigation handlers
-    prevBtn.onclick = async () => {
+    // Navigation handlers (synchronous like working example)
+    prevBtn.onclick = () => {
       if (currentPage > 1) {
         currentPage--;
-        await renderPage(currentPage);
+        renderPage(currentPage);
         canvasContainer.scrollTop = 0;
       }
     };
 
-    nextBtn.onclick = async () => {
+    nextBtn.onclick = () => {
       if (currentPage < numPages) {
         currentPage++;
-        await renderPage(currentPage);
+        renderPage(currentPage);
         canvasContainer.scrollTop = 0;
       }
     };
@@ -2152,26 +2148,22 @@ async function createPDFJSViewer(base64Data) {
 
     closeBtn.onclick = cleanup;
 
-    // Keyboard navigation
-    const handleKeys = async (e) => {
-      try {
-        if (e.key === 'Escape' || e.key === 'Esc') {
-          cleanup();
-        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-          if (currentPage > 1) {
-            currentPage--;
-            await renderPage(currentPage);
-            canvasContainer.scrollTop = 0;
-          }
-        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-          if (currentPage < numPages) {
-            currentPage++;
-            await renderPage(currentPage);
-            canvasContainer.scrollTop = 0;
-          }
+    // Keyboard navigation (synchronous like working example)
+    const handleKeys = (e) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        cleanup();
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        if (currentPage > 1) {
+          currentPage--;
+          renderPage(currentPage);
+          canvasContainer.scrollTop = 0;
         }
-      } catch (navErr) {
-        console.error('Navigation error:', navErr);
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        if (currentPage < numPages) {
+          currentPage++;
+          renderPage(currentPage);
+          canvasContainer.scrollTop = 0;
+        }
       }
     };
 
