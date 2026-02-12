@@ -2075,69 +2075,29 @@ async function createPDFJSViewer(base64Data) {
         console.log(`Rendering page ${pageNum}...`);
         const page = await pdf.getPage(pageNum);
 
-        // Get device pixel ratio for high-DPI screens
-        const devicePixelRatio = window.devicePixelRatio || 1;
-        console.log(`Device pixel ratio: ${devicePixelRatio}`);
-
-        // Get page dimensions at scale 1
+        // Calculate scale to fit container width (responsive)
+        const containerWidth = window.innerWidth - 40; // Account for padding
         const baseViewport = page.getViewport({ scale: 1 });
-        console.log(`Base viewport: ${baseViewport.width}x${baseViewport.height}`);
+        const scale = Math.min(containerWidth / baseViewport.width, 2.0); // Cap at 2x
 
-        // Calculate display scale to fit container width
-        const containerWidth = window.innerWidth - 40;
-        let displayScale = containerWidth / baseViewport.width;
+        // Use simple scaling like working example
+        const viewport = page.getViewport({ scale: scale });
 
-        // Cap maximum display scale to prevent over-zooming
-        displayScale = Math.min(displayScale, 3.0);
+        // Set canvas size directly to viewport (same as working example)
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-        console.log(`Display scale: ${displayScale}`);
+        console.log(`Canvas: ${canvas.width}x${canvas.height}`);
 
-        // Quality multiplier for sharper text
-        // Higher on mobile devices with high-DPI screens
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        const qualityMultiplier = isMobile ? 3.0 : 2.0;
+        // Get rendering context
+        const ctx = canvas.getContext('2d');
 
-        // Calculate render scale with quality boost
-        // Cap at reasonable maximum to prevent memory issues
-        let renderScale = displayScale * devicePixelRatio * qualityMultiplier;
-        renderScale = Math.min(renderScale, 8.0); // Cap at 8x max
-
-        console.log(`Render scale: ${renderScale} (quality: ${qualityMultiplier}x)`);
-
-        // Get viewports
-        const renderViewport = page.getViewport({ scale: renderScale });
-        const displayViewport = page.getViewport({ scale: displayScale });
-
-        // Set canvas resolution (high for quality)
-        canvas.width = renderViewport.width;
-        canvas.height = renderViewport.height;
-
-        // Set display size (how it appears on screen)
-        canvas.style.width = `${displayViewport.width}px`;
-        canvas.style.height = `${displayViewport.height}px`;
-
-        console.log(`Canvas: ${canvas.width}x${canvas.height} → Display: ${displayViewport.width}x${displayViewport.height}`);
-
-        // Get rendering context with quality settings
-        const ctx = canvas.getContext('2d', {
-          alpha: false,
-          willReadFrequently: false
-        });
-
-        // Text rendering quality settings
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-
-        // Render the PDF page
-        const renderContext = {
+        // Render the PDF page (simple, like working example)
+        await page.render({
           canvasContext: ctx,
-          viewport: renderViewport,
-          intent: 'print', // Use print quality for best text rendering
-          enableWebGL: false,
-          renderInteractiveForms: false
-        };
+          viewport: viewport
+        }).promise;
 
-        await page.render(renderContext).promise;
         console.log(`Page ${pageNum} rendered successfully`);
 
         // Update UI
