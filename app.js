@@ -2043,6 +2043,8 @@ async function createPDFJSViewer(base64Data) {
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       background: white;
       display: block;
+      max-width: 100%;
+      height: auto;
     `;
 
     canvasContainer.appendChild(canvas);
@@ -2068,13 +2070,16 @@ async function createPDFJSViewer(base64Data) {
     let currentPage = 1;
     const numPages = pdf.numPages;
 
+    // Get canvas context once (same as working example)
+    const ctx = canvas.getContext('2d');
+
     async function renderPage(pageNum) {
       try {
         console.log(`Rendering page ${pageNum}...`);
         const page = await pdf.getPage(pageNum);
 
-        // Fit width to screen (same as working example)
-        const containerWidth = canvasContainer.clientWidth - 20;
+        // Fit width to screen - account for padding on both sides (20px * 2 = 40px)
+        const containerWidth = canvasContainer.clientWidth - 40;
         const viewport = page.getViewport({ scale: 1 });
         const scale = containerWidth / viewport.width;
 
@@ -2083,26 +2088,23 @@ async function createPDFJSViewer(base64Data) {
         // High-DPI support (same as working example)
         const outputScale = window.devicePixelRatio || 1;
 
+        // Set canvas dimensions
         canvas.width = scaledViewport.width * outputScale;
         canvas.height = scaledViewport.height * outputScale;
 
         canvas.style.width = scaledViewport.width + "px";
         canvas.style.height = scaledViewport.height + "px";
 
-        const ctx = canvas.getContext('2d');
-
-        // CRITICAL: Apply transform for high-DPI rendering
+        // Apply transform for high-DPI rendering
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
         // Render the PDF page
-        await page.render({
+        page.render({
           canvasContext: ctx,
           viewport: scaledViewport
-        }).promise;
+        });
 
-        console.log(`Page ${pageNum} rendered successfully`);
-
-        // Update UI
+        // Update UI (synchronously like working example)
         pageInfo.textContent = `${pageNum} / ${numPages}`;
         prevBtn.disabled = pageNum === 1;
         nextBtn.disabled = pageNum === numPages;
@@ -2112,6 +2114,8 @@ async function createPDFJSViewer(base64Data) {
         prevBtn.style.cursor = pageNum === 1 ? 'default' : 'pointer';
         nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
         nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
+
+        console.log(`Page ${pageNum} rendered`);
 
       } catch (renderErr) {
         console.error(`Error rendering page ${pageNum}:`, renderErr);
