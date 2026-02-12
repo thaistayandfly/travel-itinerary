@@ -2075,27 +2075,31 @@ async function createPDFJSViewer(base64Data) {
         console.log(`Rendering page ${pageNum}...`);
         const page = await pdf.getPage(pageNum);
 
-        // Calculate scale to fit container width (responsive)
-        const containerWidth = window.innerWidth - 40; // Account for padding
-        const baseViewport = page.getViewport({ scale: 1 });
-        const scale = Math.min(containerWidth / baseViewport.width, 2.0); // Cap at 2x
+        // Fit width to screen (same as working example)
+        const containerWidth = canvasContainer.clientWidth - 20;
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = containerWidth / viewport.width;
 
-        // Use simple scaling like working example
-        const viewport = page.getViewport({ scale: scale });
+        const scaledViewport = page.getViewport({ scale });
 
-        // Set canvas size directly to viewport (same as working example)
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+        // High-DPI support (same as working example)
+        const outputScale = window.devicePixelRatio || 1;
 
-        console.log(`Canvas: ${canvas.width}x${canvas.height}`);
+        canvas.width = scaledViewport.width * outputScale;
+        canvas.height = scaledViewport.height * outputScale;
 
-        // Get rendering context
+        canvas.style.width = scaledViewport.width + "px";
+        canvas.style.height = scaledViewport.height + "px";
+
         const ctx = canvas.getContext('2d');
 
-        // Render the PDF page (simple, like working example)
+        // CRITICAL: Apply transform for high-DPI rendering
+        ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+
+        // Render the PDF page
         await page.render({
           canvasContext: ctx,
-          viewport: viewport
+          viewport: scaledViewport
         }).promise;
 
         console.log(`Page ${pageNum} rendered successfully`);
