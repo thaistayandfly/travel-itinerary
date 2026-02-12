@@ -2071,50 +2071,35 @@ async function createPDFJSViewer(base64Data) {
     // Get canvas context once (same as working example)
     const ctx = canvas.getContext('2d');
 
-    // Synchronous renderPage function using .then() (EXACTLY like working example)
+    // Render page with correct high-DPI support (bake outputScale into viewport)
     function renderPage(pageNum) {
       pdf.getPage(pageNum).then(page => {
         console.log(`Rendering page ${pageNum}...`);
 
-        // Fit width to screen - account for padding on both sides (20px * 2 = 40px)
+        // Calculate display scale to fit container
         const containerWidth = canvasContainer.clientWidth - 40;
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = containerWidth / viewport.width;
-
-        // 🔍 DEBUG: Log calculated values
-        console.log('🔍 Container clientWidth:', canvasContainer.clientWidth);
-        console.log('🔍 Container width - padding:', containerWidth);
-        console.log('🔍 Base viewport width:', viewport.width);
-        console.log('🔍 Calculated scale:', scale);
-
-        const scaledViewport = page.getViewport({ scale });
-
-        // High-DPI support (same as working example)
+        const baseViewport = page.getViewport({ scale: 1 });
         const outputScale = window.devicePixelRatio || 1;
 
-        console.log('🔍 Device pixel ratio:', outputScale);
-        console.log('🔍 Scaled viewport:', scaledViewport.width, 'x', scaledViewport.height);
+        // ✅ FIX: Bake outputScale into viewport scale (no double-scaling)
+        const scale = (containerWidth / baseViewport.width) * outputScale;
+        const scaledViewport = page.getViewport({ scale });
 
-        // Set canvas dimensions
-        canvas.width = scaledViewport.width * outputScale;
-        canvas.height = scaledViewport.height * outputScale;
+        // Set canvas resolution (already scaled by outputScale in viewport)
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
 
-        canvas.style.width = scaledViewport.width + "px";
-        canvas.style.height = scaledViewport.height + "px";
+        // Set display size (divide back by outputScale for CSS pixels)
+        canvas.style.width = (scaledViewport.width / outputScale) + 'px';
+        canvas.style.height = (scaledViewport.height / outputScale) + 'px';
 
-        console.log('🔍 Canvas resolution:', canvas.width, 'x', canvas.height);
-        console.log('🔍 Canvas display size:', canvas.style.width, 'x', canvas.style.height);
+        console.log('✅ Scale:', scale, '(display:', containerWidth / baseViewport.width, '× dpr:', outputScale + ')');
+        console.log('✅ Canvas resolution:', canvas.width, 'x', canvas.height);
+        console.log('✅ Canvas display size:', canvas.style.width, 'x', canvas.style.height);
 
-        // Apply transform for high-DPI rendering
-        ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        // ✅ FIX: No setTransform needed - scale is already in viewport
 
-        // Render the PDF page (no .promise, no await)
-        page.render({
-          canvasContext: ctx,
-          viewport: scaledViewport
-        });
-
-        // Update UI
+        // Update UI before rendering
         pageInfo.textContent = `${pageNum} / ${numPages}`;
         prevBtn.disabled = pageNum === 1;
         nextBtn.disabled = pageNum === numPages;
@@ -2125,7 +2110,13 @@ async function createPDFJSViewer(base64Data) {
         nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
         nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
 
-        console.log(`Page ${pageNum} rendered`);
+        // ✅ FIX: Await render to prevent overlapping renders
+        page.render({
+          canvasContext: ctx,
+          viewport: scaledViewport
+        }).promise.then(() => {
+          console.log(`✅ Page ${pageNum} rendered successfully`);
+        });
       });
     }
 
