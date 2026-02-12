@@ -2095,26 +2095,29 @@ async function createPDFJSViewer(base64Data) {
       // Get page dimensions at scale 1
       const baseViewport = page.getViewport({ scale: 1 });
 
-      // Calculate the scale needed to fit container width
+      // Calculate the scale needed to fit container width (this is the display scale)
       const containerWidth = window.innerWidth - 40;
-      const scaleToFit = containerWidth / baseViewport.width;
+      const displayScale = containerWidth / baseViewport.width;
 
-      // Use a high-quality scale (minimum 2.5x, or higher if needed for small PDFs)
-      // Multiply by devicePixelRatio for crisp rendering on retina displays
-      const renderScale = Math.max(2.5, scaleToFit) * devicePixelRatio;
+      // Quality boost for sharper text (2.0x gives excellent quality)
+      const qualityBoost = 2.0;
 
-      // Create viewport at high resolution
-      const viewport = page.getViewport({ scale: renderScale });
+      // Render scale = display scale × pixel ratio × quality boost
+      const renderScale = displayScale * devicePixelRatio * qualityBoost;
 
-      // Set canvas internal resolution (high quality)
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      // Get viewport for rendering (high resolution)
+      const renderViewport = page.getViewport({ scale: renderScale });
 
-      // Set canvas display size (CSS pixels) to fit container
-      const displayWidth = viewport.width / devicePixelRatio;
-      const displayHeight = viewport.height / devicePixelRatio;
-      canvas.style.width = `${displayWidth}px`;
-      canvas.style.height = `${displayHeight}px`;
+      // Get viewport for display (screen resolution)
+      const displayViewport = page.getViewport({ scale: displayScale });
+
+      // Set canvas internal resolution (high for quality)
+      canvas.width = renderViewport.width;
+      canvas.height = renderViewport.height;
+
+      // Set canvas display size (matches screen dimensions)
+      canvas.style.width = `${displayViewport.width}px`;
+      canvas.style.height = `${displayViewport.height}px`;
 
       // Get canvas context with quality settings
       const ctx = canvas.getContext('2d', {
@@ -2128,7 +2131,7 @@ async function createPDFJSViewer(base64Data) {
 
       const renderContext = {
         canvasContext: ctx,
-        viewport: viewport,
+        viewport: renderViewport,
         intent: 'print' // Use print quality for sharper text
       };
 
