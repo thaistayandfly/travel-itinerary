@@ -1802,18 +1802,16 @@ function openPDFInNewTab(base64Data) {
     const blob = new Blob([byteArray], { type: 'application/pdf' });
     const blobUrl = URL.createObjectURL(blob);
 
-    // Detect mobile platforms
+    // Detect browsers
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isAndroid = /Android/.test(navigator.userAgent);
+    const isSamsungBrowser = /SamsungBrowser/.test(navigator.userAgent);
     const isMobile = isIOS || isAndroid;
 
     if (isMobile) {
-      // For mobile: Open in same window using window.open with _self target
-      // This forces the browser to open the PDF instead of downloading it
-      window.open(blobUrl, '_self');
-
-      // Clean up blob URL after a delay
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      // For mobile: Create a full-screen iframe viewer
+      // This works better across all mobile browsers including Samsung Internet
+      createMobilePDFViewer(blobUrl);
     } else {
       // For desktop browsers, use window.open
       const newWindow = window.open(blobUrl, '_blank');
@@ -1840,6 +1838,85 @@ function openPDFInNewTab(base64Data) {
       'error'
     );
   }
+}
+
+function createMobilePDFViewer(blobUrl) {
+  // Create full-screen PDF viewer overlay
+  const viewer = document.createElement('div');
+  viewer.id = 'pdfViewer';
+  viewer.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+  `;
+
+  // Create header with close button
+  const header = document.createElement('div');
+  header.style.cssText = `
+    background: #1c1f24;
+    color: white;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 56px;
+  `;
+
+  const title = document.createElement('span');
+  title.textContent = 'Document';
+  title.style.cssText = 'font-weight: 600;';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.textContent = '✕';
+  closeBtn.style.cssText = `
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    padding: 8px;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+  `;
+  closeBtn.onclick = () => {
+    document.body.removeChild(viewer);
+    URL.revokeObjectURL(blobUrl);
+  };
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  // Create iframe for PDF
+  const iframe = document.createElement('iframe');
+  iframe.src = blobUrl;
+  iframe.style.cssText = `
+    flex: 1;
+    border: none;
+    width: 100%;
+    height: 100%;
+    background: white;
+  `;
+
+  viewer.appendChild(header);
+  viewer.appendChild(iframe);
+  document.body.appendChild(viewer);
+
+  // Add ESC key listener
+  const handleEsc = (e) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      document.body.removeChild(viewer);
+      URL.revokeObjectURL(blobUrl);
+      document.removeEventListener('keydown', handleEsc);
+    }
+  };
+  document.addEventListener('keydown', handleEsc);
 }
 
 function getErrorMessage(errorCode) {
