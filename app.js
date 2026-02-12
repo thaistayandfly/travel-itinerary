@@ -1791,59 +1791,9 @@ async function downloadAllDocuments() {
 
 function openPDFInNewTab(base64Data) {
   try {
-    // Detect browser and platform
-    const isSamsungBrowser = /SamsungBrowser/i.test(navigator.userAgent);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-
-    // Use PDF.js for Samsung Internet (doesn't support native PDF)
-    // Use native rendering for iOS Safari and Chrome
-    if (isSamsungBrowser) {
-      createPDFJSViewer(base64Data);
-      return;
-    }
-
-    // For iOS Safari and Chrome: use data URI (works better than blob URL on iOS)
-    if (isIOS || isSafari) {
-      const dataUri = `data:application/pdf;base64,${base64Data}`;
-      const link = document.createElement('a');
-      link.href = dataUri;
-      link.target = '_blank';
-      link.download = 'document.pdf'; // Provides download option if viewer fails
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return;
-    }
-
-    // For Android Chrome and desktop browsers: use blob URL
-    const byteCharacters = atob(base64Data);
-    const byteNumbers = new Array(byteCharacters.length);
-
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i);
-    }
-
-    const byteArray = new Uint8Array(byteNumbers);
-    const blob = new Blob([byteArray], { type: 'application/pdf' });
-    const blobUrl = URL.createObjectURL(blob);
-
-    // Open PDF in new tab/window
-    const newWindow = window.open(blobUrl, '_blank');
-
-    if (!newWindow) {
-      // Fallback if popup blocked
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // Clean up blob URL after a delay
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-
+    // Use PDF.js viewer for all browsers
+    // This provides consistent experience, no popup blockers, and full control
+    createPDFJSViewer(base64Data);
   } catch (err) {
     console.error('Error opening PDF:', err);
     showNotification(
