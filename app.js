@@ -2081,10 +2081,19 @@ async function createPDFJSViewer(base64Data) {
         const viewport = page.getViewport({ scale: 1 });
         const scale = containerWidth / viewport.width;
 
+        // 🔍 DEBUG: Log calculated values
+        console.log('🔍 Container clientWidth:', canvasContainer.clientWidth);
+        console.log('🔍 Container width - padding:', containerWidth);
+        console.log('🔍 Base viewport width:', viewport.width);
+        console.log('🔍 Calculated scale:', scale);
+
         const scaledViewport = page.getViewport({ scale });
 
         // High-DPI support (same as working example)
         const outputScale = window.devicePixelRatio || 1;
+
+        console.log('🔍 Device pixel ratio:', outputScale);
+        console.log('🔍 Scaled viewport:', scaledViewport.width, 'x', scaledViewport.height);
 
         // Set canvas dimensions
         canvas.width = scaledViewport.width * outputScale;
@@ -2092,6 +2101,9 @@ async function createPDFJSViewer(base64Data) {
 
         canvas.style.width = scaledViewport.width + "px";
         canvas.style.height = scaledViewport.height + "px";
+
+        console.log('🔍 Canvas resolution:', canvas.width, 'x', canvas.height);
+        console.log('🔍 Canvas display size:', canvas.style.width, 'x', canvas.style.height);
 
         // Apply transform for high-DPI rendering
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
