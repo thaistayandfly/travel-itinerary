@@ -1931,16 +1931,21 @@ function createMobilePDFViewer(pdfUrl) {
   document.addEventListener('keydown', handleEsc);
 }
 
-// PDF.js-based viewer for browsers without native PDF support (Samsung Internet, etc.)
+// Universal PDF.js viewer for all browsers and devices
 async function createPDFJSViewer(base64Data) {
+  let viewer = null;
+
   try {
     // Check if PDF.js is loaded
     if (typeof pdfjsLib === 'undefined') {
-      throw new Error('PDF.js library not loaded');
+      console.error('PDF.js library not loaded');
+      throw new Error('PDF viewer library not available');
     }
 
+    console.log('Creating PDF.js viewer...');
+
     // Create full-screen viewer overlay
-    const viewer = document.createElement('div');
+    viewer = document.createElement('div');
     viewer.id = 'pdfJsViewer';
     viewer.style.cssText = `
       position: fixed;
@@ -1962,6 +1967,7 @@ async function createPDFJSViewer(base64Data) {
       justify-content: space-between;
       min-height: 56px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      flex-shrink: 0;
     `;
 
     const title = document.createElement('span');
@@ -1969,12 +1975,12 @@ async function createPDFJSViewer(base64Data) {
     title.style.cssText = 'font-weight: 600; font-size: 16px;';
 
     const controls = document.createElement('div');
-    controls.style.cssText = 'display: flex; align-items: center; gap: 16px;';
+    controls.style.cssText = 'display: flex; align-items: center; gap: 12px;';
 
     // Page navigation
     const pageInfo = document.createElement('span');
     pageInfo.id = 'pdfPageInfo';
-    pageInfo.style.cssText = 'font-size: 14px; color: #aaa;';
+    pageInfo.style.cssText = 'font-size: 14px; color: #aaa; min-width: 60px; text-align: center;';
 
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '◀';
@@ -1982,10 +1988,11 @@ async function createPDFJSViewer(base64Data) {
       background: #3a3d44;
       border: none;
       color: white;
-      font-size: 18px;
+      font-size: 16px;
       padding: 8px 12px;
       cursor: pointer;
       border-radius: 6px;
+      transition: opacity 0.2s;
     `;
 
     const nextBtn = document.createElement('button');
@@ -2028,13 +2035,16 @@ async function createPDFJSViewer(base64Data) {
       align-items: flex-start;
       justify-content: center;
       padding: 20px;
+      -webkit-overflow-scrolling: touch;
     `;
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = `
       max-width: 100%;
+      height: auto;
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       background: white;
+      display: block;
     `;
 
     canvasContainer.appendChild(canvas);
@@ -2042,72 +2052,106 @@ async function createPDFJSViewer(base64Data) {
     viewer.appendChild(canvasContainer);
     document.body.appendChild(viewer);
 
-    // Load and render PDF
-    const loadingTask = pdfjsLib.getDocument({ data: atob(base64Data) });
+    console.log('Loading PDF document...');
+
+    // Load PDF with error handling
+    const loadingTask = pdfjsLib.getDocument({
+      data: atob(base64Data),
+      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+      cMapPacked: true
+    });
+
     const pdf = await loadingTask.promise;
+    console.log(`PDF loaded: ${pdf.numPages} pages`);
 
     let currentPage = 1;
     const numPages = pdf.numPages;
 
     async function renderPage(pageNum) {
-      const page = await pdf.getPage(pageNum);
+      try {
+        console.log(`Rendering page ${pageNum}...`);
+        const page = await pdf.getPage(pageNum);
 
-      // Get device pixel ratio for high-DPI screens
-      const devicePixelRatio = window.devicePixelRatio || 1;
+        // Get device pixel ratio for high-DPI screens
+        const devicePixelRatio = window.devicePixelRatio || 1;
+        console.log(`Device pixel ratio: ${devicePixelRatio}`);
 
-      // Get page dimensions at scale 1
-      const baseViewport = page.getViewport({ scale: 1 });
+        // Get page dimensions at scale 1
+        const baseViewport = page.getViewport({ scale: 1 });
+        console.log(`Base viewport: ${baseViewport.width}x${baseViewport.height}`);
 
-      // Calculate the scale needed to fit container width (this is the display scale)
-      const containerWidth = window.innerWidth - 40;
-      const displayScale = containerWidth / baseViewport.width;
+        // Calculate display scale to fit container width
+        const containerWidth = window.innerWidth - 40;
+        let displayScale = containerWidth / baseViewport.width;
 
-      // Ultra-high quality boost for crystal-clear text on mobile
-      // Using 4.0x for excellent text clarity
-      const qualityBoost = 4.0;
+        // Cap maximum display scale to prevent over-zooming
+        displayScale = Math.min(displayScale, 3.0);
 
-      // Render scale = display scale × pixel ratio × quality boost
-      const renderScale = displayScale * devicePixelRatio * qualityBoost;
+        console.log(`Display scale: ${displayScale}`);
 
-      // Get viewport for rendering (high resolution)
-      const renderViewport = page.getViewport({ scale: renderScale });
+        // Quality multiplier for sharper text
+        // Higher on mobile devices with high-DPI screens
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        const qualityMultiplier = isMobile ? 3.0 : 2.0;
 
-      // Get viewport for display (screen resolution)
-      const displayViewport = page.getViewport({ scale: displayScale });
+        // Calculate render scale with quality boost
+        // Cap at reasonable maximum to prevent memory issues
+        let renderScale = displayScale * devicePixelRatio * qualityMultiplier;
+        renderScale = Math.min(renderScale, 8.0); // Cap at 8x max
 
-      // Set canvas internal resolution (high for quality)
-      canvas.width = renderViewport.width;
-      canvas.height = renderViewport.height;
+        console.log(`Render scale: ${renderScale} (quality: ${qualityMultiplier}x)`);
 
-      // Set canvas display size (matches screen dimensions)
-      canvas.style.width = `${displayViewport.width}px`;
-      canvas.style.height = `${displayViewport.height}px`;
+        // Get viewports
+        const renderViewport = page.getViewport({ scale: renderScale });
+        const displayViewport = page.getViewport({ scale: displayScale });
 
-      // Get canvas context with quality settings
-      const ctx = canvas.getContext('2d', {
-        alpha: false,
-        desynchronized: false
-      });
+        // Set canvas resolution (high for quality)
+        canvas.width = renderViewport.width;
+        canvas.height = renderViewport.height;
 
-      // Enable font smoothing for better text rendering
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
+        // Set display size (how it appears on screen)
+        canvas.style.width = `${displayViewport.width}px`;
+        canvas.style.height = `${displayViewport.height}px`;
 
-      const renderContext = {
-        canvasContext: ctx,
-        viewport: renderViewport,
-        intent: 'print' // Use print quality for sharper text
-      };
+        console.log(`Canvas: ${canvas.width}x${canvas.height} → Display: ${displayViewport.width}x${displayViewport.height}`);
 
-      await page.render(renderContext).promise;
+        // Get rendering context with quality settings
+        const ctx = canvas.getContext('2d', {
+          alpha: false,
+          willReadFrequently: false
+        });
 
-      pageInfo.textContent = `${pageNum} / ${numPages}`;
-      prevBtn.disabled = pageNum === 1;
-      nextBtn.disabled = pageNum === numPages;
+        // Text rendering quality settings
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
 
-      // Style disabled buttons
-      prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
-      nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
+        // Render the PDF page
+        const renderContext = {
+          canvasContext: ctx,
+          viewport: renderViewport,
+          intent: 'print', // Use print quality for best text rendering
+          enableWebGL: false,
+          renderInteractiveForms: false
+        };
+
+        await page.render(renderContext).promise;
+        console.log(`Page ${pageNum} rendered successfully`);
+
+        // Update UI
+        pageInfo.textContent = `${pageNum} / ${numPages}`;
+        prevBtn.disabled = pageNum === 1;
+        nextBtn.disabled = pageNum === numPages;
+
+        // Visual feedback for disabled buttons
+        prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
+        prevBtn.style.cursor = pageNum === 1 ? 'default' : 'pointer';
+        nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
+        nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
+
+      } catch (renderErr) {
+        console.error(`Error rendering page ${pageNum}:`, renderErr);
+        throw renderErr;
+      }
     }
 
     // Initial render
@@ -2130,37 +2174,52 @@ async function createPDFJSViewer(base64Data) {
       }
     };
 
-    closeBtn.onclick = () => {
-      document.body.removeChild(viewer);
+    const cleanup = () => {
+      if (viewer && viewer.parentNode) {
+        document.body.removeChild(viewer);
+      }
       document.removeEventListener('keydown', handleKeys);
     };
 
+    closeBtn.onclick = cleanup;
+
     // Keyboard navigation
     const handleKeys = async (e) => {
-      if (e.key === 'Escape' || e.key === 'Esc') {
-        document.body.removeChild(viewer);
-        document.removeEventListener('keydown', handleKeys);
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-        if (currentPage > 1) {
-          currentPage--;
-          await renderPage(currentPage);
-          canvasContainer.scrollTop = 0;
+      try {
+        if (e.key === 'Escape' || e.key === 'Esc') {
+          cleanup();
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+          if (currentPage > 1) {
+            currentPage--;
+            await renderPage(currentPage);
+            canvasContainer.scrollTop = 0;
+          }
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+          if (currentPage < numPages) {
+            currentPage++;
+            await renderPage(currentPage);
+            canvasContainer.scrollTop = 0;
+          }
         }
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-        if (currentPage < numPages) {
-          currentPage++;
-          await renderPage(currentPage);
-          canvasContainer.scrollTop = 0;
-        }
+      } catch (navErr) {
+        console.error('Navigation error:', navErr);
       }
     };
+
     document.addEventListener('keydown', handleKeys);
 
   } catch (err) {
-    console.error('Error rendering PDF with PDF.js:', err);
+    console.error('PDF.js viewer error:', err);
+
+    // Clean up viewer if it was created
+    if (viewer && viewer.parentNode) {
+      document.body.removeChild(viewer);
+    }
+
+    // Show user-friendly error
     showNotification(
       'Error',
-      'Error rendering document. Please try again.',
+      'Unable to load PDF document. Please try again.',
       'error'
     );
   }
