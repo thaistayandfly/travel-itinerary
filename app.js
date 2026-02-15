@@ -2043,6 +2043,7 @@ async function createPDFJSViewer(base64Data) {
       box-shadow: 0 4px 20px rgba(0,0,0,0.5);
       background: white;
       display: block;
+      max-width: none;
     `;
 
     canvasContainer.appendChild(canvas);
@@ -2079,16 +2080,20 @@ async function createPDFJSViewer(base64Data) {
       }
 
       pdf.getPage(pageNum).then(page => {
-        const viewport = page.getViewport({ scale: 1 });
-        const scale = (canvasContainer.clientWidth - 40) / viewport.width;
+        const baseViewport = page.getViewport({ scale: 1 });
+        const outputScale = Math.round(window.devicePixelRatio || 1);
+        const scale = (canvasContainer.clientWidth - 40) / baseViewport.width;
         const scaledViewport = page.getViewport({ scale });
-        const outputScale = window.devicePixelRatio || 1;
 
-        // Setting canvas.width clears canvas AND resets transform automatically
-        canvas.width = scaledViewport.width * outputScale;
-        canvas.height = scaledViewport.height * outputScale;
-        canvas.style.width = scaledViewport.width + 'px';
-        canvas.style.height = scaledViewport.height + 'px';
+        // Round display dimensions to clean integers — fractional CSS pixels
+        // cause sub-pixel glyph placement errors in PDF.js
+        const displayW = Math.round(scaledViewport.width);
+        const displayH = Math.round(scaledViewport.height);
+
+        canvas.width = displayW * outputScale;
+        canvas.height = displayH * outputScale;
+        canvas.style.width = displayW + 'px';
+        canvas.style.height = displayH + 'px';
 
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
