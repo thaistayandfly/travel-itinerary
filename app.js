@@ -241,6 +241,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('💾 Saving parameters for PWA...');
     await saveItineraryParams(params);
 
+    // Update manifest start_url so iOS "Add to Home Screen" saves the correct URL
+    updateManifestStartUrl(params);
+
     appState.clientCode = params.client;
     appState.spreadsheetId = params.shid;
     appState.language = params.lang || 'en';
@@ -272,6 +275,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     showError(error.message);
   }
 });
+
+// ===============================
+// DYNAMIC MANIFEST
+// ===============================
+function updateManifestStartUrl(params) {
+  try {
+    const hashParams = `client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
+    const startUrl = `./#${hashParams}`;
+
+    const manifest = {
+      name: 'Travel Itinerary',
+      short_name: 'Itinerary',
+      description: 'Your personalized travel itinerary with offline access',
+      start_url: startUrl,
+      display: 'standalone',
+      background_color: '#f4f3ef',
+      theme_color: '#b89b5e',
+      orientation: 'portrait-primary',
+      icons: [
+        {
+          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>",
+          sizes: '192x192',
+          type: 'image/svg+xml'
+        },
+        {
+          src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>",
+          sizes: '512x512',
+          type: 'image/svg+xml',
+          purpose: 'any maskable'
+        }
+      ],
+      scope: './'
+    };
+
+    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+    const manifestUrl = URL.createObjectURL(blob);
+    const link = document.querySelector('link[rel="manifest"]');
+    if (link) {
+      link.setAttribute('href', manifestUrl);
+      console.log('Updated manifest start_url:', startUrl);
+    }
+  } catch (e) {
+    console.warn('Failed to update manifest:', e);
+  }
+}
 
 // ===============================
 // URL PARAMETERS
