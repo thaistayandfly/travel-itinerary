@@ -2072,37 +2072,27 @@ async function createPDFJSViewer(base64Data) {
     let currentRenderTask = null;
 
     function renderPage(pageNum) {
+      // Cancel any in-progress render before starting new one
+      if (currentRenderTask) {
+        currentRenderTask.cancel();
+        currentRenderTask = null;
+      }
+
       pdf.getPage(pageNum).then(page => {
-        // Cancel any in-progress render before starting a new one
-        if (currentRenderTask) {
-          currentRenderTask.cancel();
-          currentRenderTask = null;
-        }
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = (canvasContainer.clientWidth - 40) / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
+        const outputScale = window.devicePixelRatio || 1;
 
-        const containerWidth = canvasContainer.clientWidth - 40;
-        const baseViewport = page.getViewport({ scale: 1 });
-        const outputScale = Math.round(window.devicePixelRatio || 1);
-        const displayScale = containerWidth / baseViewport.width;
-        const viewport = page.getViewport({ scale: displayScale });
-
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = Math.floor(viewport.width) + 'px';
-        canvas.style.height = Math.floor(viewport.height) + 'px';
+        // Setting canvas.width clears canvas AND resets transform automatically
+        canvas.width = scaledViewport.width * outputScale;
+        canvas.height = scaledViewport.height * outputScale;
+        canvas.style.width = scaledViewport.width + 'px';
+        canvas.style.height = scaledViewport.height + 'px';
 
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Update UI
-        pageInfo.textContent = `${pageNum} / ${numPages}`;
-        prevBtn.disabled = pageNum === 1;
-        nextBtn.disabled = pageNum === numPages;
-        prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
-        prevBtn.style.cursor = pageNum === 1 ? 'default' : 'pointer';
-        nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
-        nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
-
-        currentRenderTask = page.render({ canvasContext: ctx, viewport });
+        currentRenderTask = page.render({ canvasContext: ctx, viewport: scaledViewport });
 
         currentRenderTask.promise
           .then(() => {
@@ -2116,6 +2106,15 @@ async function createPDFJSViewer(base64Data) {
               console.error('Render error:', error);
             }
           });
+
+        // Update UI
+        pageInfo.textContent = `${pageNum} / ${numPages}`;
+        prevBtn.disabled = pageNum === 1;
+        nextBtn.disabled = pageNum === numPages;
+        prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
+        prevBtn.style.cursor = pageNum === 1 ? 'default' : 'pointer';
+        nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
+        nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
       });
     }
 
