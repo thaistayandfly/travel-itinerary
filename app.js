@@ -2029,21 +2029,18 @@ async function createPDFJSViewer(base64Data) {
     canvasContainer.style.cssText = `
       flex: 1;
       overflow-y: auto;
-      overflow-x: auto;
+      overflow-x: hidden;
       background: #1c1f24;
       display: flex;
       align-items: flex-start;
       justify-content: center;
-      padding: 20px;
       -webkit-overflow-scrolling: touch;
     `;
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = `
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-      background: white;
       display: block;
-      max-width: none;
+      background: white;
     `;
 
     canvasContainer.appendChild(canvas);
@@ -2060,17 +2057,7 @@ async function createPDFJSViewer(base64Data) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Load PDF with standard font data and character maps.
-    // Without these, PDF.js uses internal fallback glyph metrics that
-    // miscalculate character advance widths, causing "H o te l" spacing.
-    // NOTE: cdnjs returns 403 for these assets — must use jsDelivr.
-    const loadingTask = pdfjsLib.getDocument({
-      data: bytes,
-      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-      cMapPacked: true,
-      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
-      disableFontFace: false
-    });
+    const loadingTask = pdfjsLib.getDocument({ data: bytes });
 
     const pdf = await loadingTask.promise;
     console.log(`PDF loaded: ${pdf.numPages} pages`);
@@ -2089,31 +2076,30 @@ async function createPDFJSViewer(base64Data) {
       }
 
       pdf.getPage(pageNum).then(page => {
-        const baseViewport = page.getViewport({ scale: 1 });
-        const outputScale = Math.round(window.devicePixelRatio || 1);
+        // Match working example exactly: raw values, no rounding
+        const viewport = page.getViewport({ scale: 1 });
+        const scale = canvasContainer.clientWidth / viewport.width;
+        const scaledViewport = page.getViewport({ scale });
 
-        // Use full clientWidth (no -40) so viewport and canvas math stay in sync.
-        // Only floor the final canvas pixel size — never round viewport separately.
-        const displayScale = canvasContainer.clientWidth / baseViewport.width;
-        const viewport = page.getViewport({ scale: displayScale });
+        const outputScale = window.devicePixelRatio || 1;
 
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = Math.floor(viewport.width) + 'px';
-        canvas.style.height = Math.floor(viewport.height) + 'px';
+        canvas.width = scaledViewport.width * outputScale;
+        canvas.height = scaledViewport.height * outputScale;
+        canvas.style.width = scaledViewport.width + 'px';
+        canvas.style.height = scaledViewport.height + 'px';
 
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
-        currentRenderTask = page.render({ canvasContext: ctx, viewport: viewport });
+        currentRenderTask = page.render({ canvasContext: ctx, viewport: scaledViewport });
 
         currentRenderTask.promise
           .then(() => {
             currentRenderTask = null;
-            console.log(`✅ Page ${pageNum} rendered`);
+            console.log(`Page ${pageNum} rendered`);
           })
           .catch(error => {
             if (error?.name === 'RenderingCancelledException') {
-              console.log(`⏹ Page ${pageNum} render cancelled`);
+              console.log(`Page ${pageNum} render cancelled`);
             } else {
               console.error('Render error:', error);
             }
