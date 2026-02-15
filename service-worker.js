@@ -1,10 +1,9 @@
-const CACHE_NAME = 'itinerary-pwa-v18';
+const CACHE_NAME = 'itinerary-pwa-v19';
 const urlsToCache = [
   './',
   './index.html',
   './styles.css',
   './app.js',
-  './manifest.json',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
   'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;500;600&display=swap'
 ];
@@ -90,6 +89,62 @@ self.addEventListener('fetch', (event) => {
           status: 503,
           headers: { 'Content-Type': 'application/json' }
         });
+      })
+    );
+    return;
+  }
+
+  // Serve dynamic manifest.json with saved start_url for iOS Add to Home Screen
+  if (url.pathname.endsWith('/manifest.json') || url.pathname.endsWith('manifest.json')) {
+    event.respondWith(
+      caches.open('itinerary-params-cache').then(cache => {
+        return cache.match('/params.json').then(async (paramsResponse) => {
+          // Base manifest
+          const manifest = {
+            name: 'Travel Itinerary',
+            short_name: 'Itinerary',
+            description: 'Your personalized travel itinerary with offline access',
+            start_url: './',
+            display: 'standalone',
+            background_color: '#f4f3ef',
+            theme_color: '#b89b5e',
+            orientation: 'portrait-primary',
+            icons: [
+              {
+                src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>",
+                sizes: '192x192',
+                type: 'image/svg+xml'
+              },
+              {
+                src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>",
+                sizes: '512x512',
+                type: 'image/svg+xml',
+                purpose: 'any maskable'
+              }
+            ],
+            scope: './'
+          };
+
+          // If we have saved params, bake them into start_url
+          if (paramsResponse) {
+            try {
+              const params = await paramsResponse.json();
+              if (params.client && params.shid) {
+                manifest.start_url = `./#client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
+                console.log('[SW] Dynamic manifest start_url:', manifest.start_url);
+              }
+            } catch (e) {
+              console.warn('[SW] Failed to read params for manifest:', e);
+            }
+          }
+
+          return new Response(JSON.stringify(manifest), {
+            headers: { 'Content-Type': 'application/json' }
+          });
+        });
+      }).catch(() => {
+        // Fallback: fetch the static manifest
+        return fetch(request);
       })
     );
     return;
