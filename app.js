@@ -1974,38 +1974,13 @@ async function createPDFJSViewer(base64Data) {
     title.textContent = 'Document';
     title.style.cssText = 'font-weight: 600; font-size: 16px;';
 
-    const controls = document.createElement('div');
-    controls.style.cssText = 'display: flex; align-items: center; gap: 12px;';
-
-    // Page navigation
-    const pageInfo = document.createElement('span');
-    pageInfo.id = 'pdfPageInfo';
-    pageInfo.style.cssText = 'font-size: 14px; color: #aaa; min-width: 60px; text-align: center;';
-
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '◀';
-    prevBtn.style.cssText = `
-      background: #3a3d44;
-      border: none;
-      color: white;
-      font-size: 16px;
-      padding: 8px 12px;
-      cursor: pointer;
-      border-radius: 6px;
-      transition: opacity 0.2s;
-    `;
-
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '▶';
-    nextBtn.style.cssText = prevBtn.style.cssText;
-
     const closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
     closeBtn.style.cssText = `
       background: none;
       border: none;
       color: white;
-      font-size: 24px;
+      font-size: 22px;
       padding: 8px;
       cursor: pointer;
       width: 40px;
@@ -2016,13 +1991,69 @@ async function createPDFJSViewer(base64Data) {
       border-radius: 8px;
     `;
 
-    controls.appendChild(prevBtn);
-    controls.appendChild(pageInfo);
-    controls.appendChild(nextBtn);
-    controls.appendChild(closeBtn);
-
     header.appendChild(title);
-    header.appendChild(controls);
+    header.appendChild(closeBtn);
+
+    // Floating bottom navigation bar
+    const navBar = document.createElement('div');
+    navBar.style.cssText = `
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(42, 45, 52, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 40px;
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      z-index: 10;
+      flex-shrink: 0;
+    `;
+
+    const navBtnStyle = `
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    `;
+
+    const prevBtn = document.createElement('button');
+    prevBtn.innerHTML = '&#8249;';
+    prevBtn.style.cssText = navBtnStyle;
+    prevBtn.onmouseenter = () => { if (!prevBtn.disabled) prevBtn.style.background = 'rgba(255,255,255,0.12)'; };
+    prevBtn.onmouseleave = () => { prevBtn.style.background = 'none'; };
+
+    const pageInfo = document.createElement('span');
+    pageInfo.style.cssText = `
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      min-width: 50px;
+      text-align: center;
+      font-weight: 500;
+      user-select: none;
+    `;
+
+    const nextBtn = document.createElement('button');
+    nextBtn.innerHTML = '&#8250;';
+    nextBtn.style.cssText = navBtnStyle;
+    nextBtn.onmouseenter = () => { if (!nextBtn.disabled) nextBtn.style.background = 'rgba(255,255,255,0.12)'; };
+    nextBtn.onmouseleave = () => { nextBtn.style.background = 'none'; };
+
+    navBar.appendChild(prevBtn);
+    navBar.appendChild(pageInfo);
+    navBar.appendChild(nextBtn);
 
     // Create canvas container - simple block layout (no flex) to avoid CSS interference
     const canvasContainer = document.createElement('div');
@@ -2045,6 +2076,7 @@ async function createPDFJSViewer(base64Data) {
     canvasContainer.appendChild(canvas);
     viewer.appendChild(header);
     viewer.appendChild(canvasContainer);
+    viewer.appendChild(navBar);
     document.body.appendChild(viewer);
 
     console.log('Loading PDF document...');
@@ -2116,6 +2148,11 @@ async function createPDFJSViewer(base64Data) {
         nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
         nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
       });
+    }
+
+    // Hide nav bar for single-page PDFs
+    if (numPages <= 1) {
+      navBar.style.display = 'none';
     }
 
     // Initial render
