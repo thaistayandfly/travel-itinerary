@@ -178,57 +178,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🔍 Current URL:', window.location.href);
     console.log('🔍 URL params:', params);
 
-    // Safari PWA Fix: If we have query params but not hash params, convert to hash-based URL
-    if (params.client && params.shid && window.location.search && !window.location.hash) {
-      const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
-      const hashParams = `client=${params.client}&shid=${params.shid}&lang=${params.lang}`;
-      const newUrl = `${baseUrl}#${hashParams}`;
-      console.log('🔄 Converting query params to hash params:', newUrl);
-      window.location.replace(newUrl);
-      return;
-    }
-
-    // If no URL parameters, check if we have saved parameters (for installed PWA)
+    // If no URL parameters, check saved parameters (for installed PWA / home screen)
     if (!params.client || !params.shid) {
       console.log('⚠️ Missing URL parameters, checking saved data...');
       const savedParams = await getSavedItineraryParams();
 
       if (savedParams && savedParams.client && savedParams.shid) {
-        console.log('✅ Found saved parameters:', savedParams);
-
-        // Check if we're in standalone mode (PWA installed)
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-          || window.navigator.standalone
-          || document.referrer.includes('android-app://');
-
-        // Safari PWA Fix: Always redirect to hash-based URL to persist params in PWA mode
-        const baseUrl = window.location.origin + window.location.pathname.replace(/\/$/, '');
-        const hashParams = `client=${savedParams.client}&shid=${savedParams.shid}&lang=${savedParams.lang || 'en'}`;
-        const newUrl = `${baseUrl}#${hashParams}`;
-
-        // Only redirect if we're not already at this URL
-        const currentHash = window.location.hash.substring(1);
-        if (currentHash !== hashParams) {
-          console.log('🔄 Redirecting to hash-based URL:', newUrl);
-          window.location.replace(newUrl);
-          return;
-        }
-
-        // If we're already at the correct hash URL, use the params
-        console.log('📱 Running in PWA mode with hash params');
+        console.log('✅ Found saved parameters, using directly');
         params.client = savedParams.client;
         params.shid = savedParams.shid;
         params.lang = savedParams.lang || 'en';
       } else {
         console.error('❌ No saved parameters found');
 
-        // Safari-specific: Show helpful error with recovery option
         const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches
           || window.navigator.standalone;
 
         if (isSafari && isStandalone) {
-          // Safari PWA - show recovery UI
           showSafariPWARecoveryUI();
         } else {
           showError('Missing required parameters: client and shid');
@@ -281,8 +248,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ===============================
 function updateManifestStartUrl(params) {
   try {
-    const hashParams = `client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
-    const startUrl = `./#${hashParams}`;
+    const queryParams = `client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
+    const startUrl = `./?${queryParams}`;
 
     const manifest = {
       name: 'Travel Itinerary',

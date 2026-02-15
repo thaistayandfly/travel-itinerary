@@ -1,4 +1,4 @@
-const CACHE_NAME = 'itinerary-pwa-v19';
+const CACHE_NAME = 'itinerary-pwa-v20';
 const urlsToCache = [
   './',
   './index.html',
@@ -130,7 +130,7 @@ self.addEventListener('fetch', (event) => {
             try {
               const params = await paramsResponse.json();
               if (params.client && params.shid) {
-                manifest.start_url = `./#client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
+                manifest.start_url = `./?client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
                 console.log('[SW] Dynamic manifest start_url:', manifest.start_url);
               }
             } catch (e) {
