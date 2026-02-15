@@ -2082,22 +2082,20 @@ async function createPDFJSViewer(base64Data) {
       pdf.getPage(pageNum).then(page => {
         const baseViewport = page.getViewport({ scale: 1 });
         const outputScale = Math.round(window.devicePixelRatio || 1);
-        const scale = (canvasContainer.clientWidth - 40) / baseViewport.width;
-        const scaledViewport = page.getViewport({ scale });
 
-        // Round display dimensions to clean integers — fractional CSS pixels
-        // cause sub-pixel glyph placement errors in PDF.js
-        const displayW = Math.round(scaledViewport.width);
-        const displayH = Math.round(scaledViewport.height);
+        // Use full clientWidth (no -40) so viewport and canvas math stay in sync.
+        // Only floor the final canvas pixel size — never round viewport separately.
+        const displayScale = canvasContainer.clientWidth / baseViewport.width;
+        const viewport = page.getViewport({ scale: displayScale });
 
-        canvas.width = displayW * outputScale;
-        canvas.height = displayH * outputScale;
-        canvas.style.width = displayW + 'px';
-        canvas.style.height = displayH + 'px';
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + 'px';
+        canvas.style.height = Math.floor(viewport.height) + 'px';
 
         ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
-        currentRenderTask = page.render({ canvasContext: ctx, viewport: scaledViewport });
+        currentRenderTask = page.render({ canvasContext: ctx, viewport: viewport });
 
         currentRenderTask.promise
           .then(() => {
