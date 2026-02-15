@@ -2068,55 +2068,54 @@ async function createPDFJSViewer(base64Data) {
     let currentPage = 1;
     const numPages = pdf.numPages;
 
-    // Get canvas context once (same as working example)
     const ctx = canvas.getContext('2d');
+    let currentRenderTask = null;
 
-    // Render page with correct high-DPI support (bake outputScale into viewport)
     function renderPage(pageNum) {
       pdf.getPage(pageNum).then(page => {
-        console.log(`Rendering page ${pageNum}...`);
+        // Cancel any in-progress render before starting a new one
+        if (currentRenderTask) {
+          currentRenderTask.cancel();
+          currentRenderTask = null;
+        }
 
-        // Calculate display scale to fit container
         const containerWidth = canvasContainer.clientWidth - 40;
         const baseViewport = page.getViewport({ scale: 1 });
-        const outputScale = window.devicePixelRatio || 1;
+        const outputScale = Math.round(window.devicePixelRatio || 1);
+        const displayScale = containerWidth / baseViewport.width;
+        const viewport = page.getViewport({ scale: displayScale });
 
-        // ✅ FIX: Bake outputScale into viewport scale (no double-scaling)
-        const scale = (containerWidth / baseViewport.width) * outputScale;
-        const scaledViewport = page.getViewport({ scale });
+        canvas.width = Math.floor(viewport.width * outputScale);
+        canvas.height = Math.floor(viewport.height * outputScale);
+        canvas.style.width = Math.floor(viewport.width) + 'px';
+        canvas.style.height = Math.floor(viewport.height) + 'px';
 
-        // Set canvas resolution (already scaled by outputScale in viewport)
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
+        ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Set display size (divide back by outputScale for CSS pixels)
-        canvas.style.width = (scaledViewport.width / outputScale) + 'px';
-        canvas.style.height = (scaledViewport.height / outputScale) + 'px';
-
-        console.log('✅ Scale:', scale, '(display:', containerWidth / baseViewport.width, '× dpr:', outputScale + ')');
-        console.log('✅ Canvas resolution:', canvas.width, 'x', canvas.height);
-        console.log('✅ Canvas display size:', canvas.style.width, 'x', canvas.style.height);
-
-        // ✅ FIX: No setTransform needed - scale is already in viewport
-
-        // Update UI before rendering
+        // Update UI
         pageInfo.textContent = `${pageNum} / ${numPages}`;
         prevBtn.disabled = pageNum === 1;
         nextBtn.disabled = pageNum === numPages;
-
-        // Visual feedback for disabled buttons
         prevBtn.style.opacity = pageNum === 1 ? '0.3' : '1';
         prevBtn.style.cursor = pageNum === 1 ? 'default' : 'pointer';
         nextBtn.style.opacity = pageNum === numPages ? '0.3' : '1';
         nextBtn.style.cursor = pageNum === numPages ? 'default' : 'pointer';
 
-        // ✅ FIX: Await render to prevent overlapping renders
-        page.render({
-          canvasContext: ctx,
-          viewport: scaledViewport
-        }).promise.then(() => {
-          console.log(`✅ Page ${pageNum} rendered successfully`);
-        });
+        currentRenderTask = page.render({ canvasContext: ctx, viewport });
+
+        currentRenderTask.promise
+          .then(() => {
+            currentRenderTask = null;
+            console.log(`✅ Page ${pageNum} rendered`);
+          })
+          .catch(error => {
+            if (error?.name === 'RenderingCancelledException') {
+              console.log(`⏹ Page ${pageNum} render cancelled`);
+            } else {
+              console.error('Render error:', error);
+            }
+          });
       });
     }
 
