@@ -2024,22 +2024,21 @@ async function createPDFJSViewer(base64Data) {
     header.appendChild(title);
     header.appendChild(controls);
 
-    // Create canvas container with scrolling
+    // Create canvas container - simple block layout (no flex) to avoid CSS interference
     const canvasContainer = document.createElement('div');
     canvasContainer.style.cssText = `
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
       background: #1c1f24;
-      display: flex;
-      align-items: flex-start;
-      justify-content: center;
+      text-align: center;
       -webkit-overflow-scrolling: touch;
     `;
 
     const canvas = document.createElement('canvas');
     canvas.style.cssText = `
       display: block;
+      margin: 0 auto;
       background: white;
     `;
 
@@ -2057,7 +2056,10 @@ async function createPDFJSViewer(base64Data) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    // disableFontFace: true forces PDF.js to render text as canvas paths
+    // instead of CSS @font-face, which can fail on GitHub Pages due to
+    // CSP restrictions or Bootstrap CSS interference with font loading.
+    const loadingTask = pdfjsLib.getDocument({ data: bytes, disableFontFace: true });
 
     const pdf = await loadingTask.promise;
     console.log(`PDF loaded: ${pdf.numPages} pages`);
