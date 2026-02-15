@@ -343,6 +343,10 @@ async function saveItineraryParams(params) {
       lang: params.lang
     };
 
+    // Save to cookie FIRST - cookies are shared between Safari and standalone PWA on iOS
+    document.cookie = `itinerary_params=${encodeURIComponent(JSON.stringify(paramsData))}; path=/; max-age=${365 * 24 * 60 * 60}; SameSite=Lax`;
+    console.log('✅ Saved to cookie');
+
     // Save to localStorage (fast, synchronous)
     localStorage.setItem('itinerary_params', JSON.stringify(paramsData));
     console.log('✅ Saved to localStorage');
@@ -400,7 +404,21 @@ async function saveItineraryParams(params) {
 
 async function getSavedItineraryParams() {
   try {
-    // CRITICAL for Safari PWA: Try Cache API FIRST (most persistent in PWA mode)
+    // Try cookie FIRST - most reliable across Safari ↔ standalone PWA on iOS
+    const cookieMatch = document.cookie.match(/itinerary_params=([^;]+)/);
+    if (cookieMatch) {
+      try {
+        const data = JSON.parse(decodeURIComponent(cookieMatch[1]));
+        if (data.client && data.shid) {
+          console.log('📱 Loaded params from cookie');
+          return data;
+        }
+      } catch (e) {
+        console.warn('Cookie parse failed:', e);
+      }
+    }
+
+    // Try Cache API (persistent in PWA mode)
     if ('caches' in window) {
       try {
         const cache = await caches.open('itinerary-params-cache');
