@@ -178,6 +178,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('🔍 Current URL:', window.location.href);
     console.log('🔍 URL params:', params);
 
+    // If params came from hash (#client=...), rewrite URL to use query params (?client=...)
+    // so iOS "Add to Home Screen" preserves them (iOS strips hash fragments)
+    if (params.client && params.shid && window.location.hash && !window.location.search) {
+      const queryString = `?client=${encodeURIComponent(params.client)}&shid=${encodeURIComponent(params.shid)}&lang=${encodeURIComponent(params.lang || 'en')}`;
+      history.replaceState(null, '', window.location.pathname + queryString);
+      console.log('🔄 Rewrote hash to query params for iOS compatibility');
+    }
+
     // If no URL parameters, check saved parameters (for installed PWA / home screen)
     if (!params.client || !params.shid) {
       console.log('⚠️ Missing URL parameters, checking saved data...');
