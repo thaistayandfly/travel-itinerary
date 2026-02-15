@@ -2060,15 +2060,16 @@ async function createPDFJSViewer(base64Data) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Load PDF with full font configuration to prevent character spacing issues.
-    // Without cMapUrl/standardFontDataUrl, PDF.js falls back to internal glyph
-    // metrics that miscalculate character advance widths (e.g. "H o te l").
+    // Load PDF with standard font data and character maps.
+    // Without these, PDF.js uses internal fallback glyph metrics that
+    // miscalculate character advance widths, causing "H o te l" spacing.
+    // NOTE: cdnjs returns 403 for these assets — must use jsDelivr.
     const loadingTask = pdfjsLib.getDocument({
       data: bytes,
-      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
       cMapPacked: true,
-      standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/',
-      useSystemFonts: true
+      standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+      disableFontFace: false
     });
 
     const pdf = await loadingTask.promise;
