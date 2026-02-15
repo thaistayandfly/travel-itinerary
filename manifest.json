@@ -2,11 +2,8 @@
   "name": "Travel Itinerary",
   "short_name": "Itinerary",
   "description": "Your personalized travel itinerary with offline access",
-  "start_url": "./",
-  "display": "standalone",
   "background_color": "#f4f3ef",
   "theme_color": "#b89b5e",
-  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✈️</text></svg>",
@@ -20,11 +17,6 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["travel", "lifestyle"],
-  "screenshots": [],
-  "related_applications": [],
-  "prefer_related_applications": false,
-  "scope": "./",
   "lang": "en-US",
   "dir": "ltr"
 }
