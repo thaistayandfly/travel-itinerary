@@ -2060,8 +2060,16 @@ async function createPDFJSViewer(base64Data) {
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    // Load PDF with Uint8Array (same as working example)
-    const loadingTask = pdfjsLib.getDocument({ data: bytes });
+    // Load PDF with full font configuration to prevent character spacing issues.
+    // Without cMapUrl/standardFontDataUrl, PDF.js falls back to internal glyph
+    // metrics that miscalculate character advance widths (e.g. "H o te l").
+    const loadingTask = pdfjsLib.getDocument({
+      data: bytes,
+      cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
+      cMapPacked: true,
+      standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/standard_fonts/',
+      useSystemFonts: true
+    });
 
     const pdf = await loadingTask.promise;
     console.log(`PDF loaded: ${pdf.numPages} pages`);
